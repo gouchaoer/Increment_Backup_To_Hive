@@ -1,0 +1,8 @@
+﻿# IDE
+.idea
+.buildpath
+.project
+.settings
+*.log
+*.lock
+*.data

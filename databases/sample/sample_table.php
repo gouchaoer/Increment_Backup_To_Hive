@@ -27,6 +27,7 @@ $HIVE_TABLE = "sample_table";
  */
 $HIVE_ORCFILE = false;
 
+
 /*
  *hive表的分区策略有如下2种情况：
  *第一：不要分区，此时设置`$HIVE_PARTITION = null;`即可，此时设置`$HIVE_PARTITION = null;`即可
@@ -60,3 +61,18 @@ $HIVE_ORCFILE = false;
  ```
  */
 $HIVE_PARTITION = null;
+
+
+/*
+ * 从数据源读到的行数据不一定和hive中一样（比如你对自动生成的hive表增减了一些字段，此时你需要对每一行的数据进行处理满足hive表的格式），比如这里hive表把`sample_table`表的`created_date`字段删除，然后另外添加一个id_md5字段；
+ * 返回的$row的字段顺序必须和hive中一致，如果不一致程序会检测到并且推出
+ * $ROW_CALLBACK=function (Array $row)
+ {
+ 	unset($row['created_date']);
+ 	$row['id_md5']=md5($row['id']);
+ 	return $row;
+ }
+ * 
+ * 
+ * */
+$ROW_CALLBACK = null;

@@ -40,6 +40,12 @@ class Increment_Backup_To_Hive
 		register_shutdown_function ( 'shutdown' );
 	}
 	
+	//检查$row的格式和hive建表语句是否一致
+	static function check_row($row)
+	{
+		
+	}
+	
 	// 灏濊瘯鑾峰彇涓�鏄熸湡閽辩殑ID
 	static function id_end($id_max)
 	{

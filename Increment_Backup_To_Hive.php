@@ -15,11 +15,11 @@ class Increment_Backup_To_Hive
 		
 		Log::setting ( $TABLE );
 		
-		$CONFIG_PATH = $WORK_DIR . "config.ini";
-		self::$config_arr = parse_ini_file ( $CONFIG_PATH );
+		$config_path = $WORK_DIR . "/config.ini";
+		self::$config_arr = parse_ini_file ( $config_path );
 		if (empty ( self::$config_arr ))
 		{
-			$msg = "read config error:{$CONFIG_PATH}, exit 1";
+		    $msg = "read config error:{$config_path}, exit 1";
 			Log::log_step ( $msg, 'init', true );
 			exit ( 1 );
 		}
@@ -29,7 +29,7 @@ class Increment_Backup_To_Hive
 		{
 			if (! mkdir ( self::$cache_dir, 0777, true ))
 			{
-				$msg = "Failed to create folder:{self::$cache_dir}, exit 1";
+				$msg = "failed to create folder:{self::$cache_dir}, exit 1";
 				Log::log_step ( $msg, 'init', true );
 				exit ( 1 );
 			}
@@ -40,13 +40,13 @@ class Increment_Backup_To_Hive
 		{
 			if (! mkdir ( self::$log_dir, 0777, true ))
 			{
-				$msg = "Failed to create folder:{self::$log_dir}, exit 1";
+				$msg = "failed to create folder:{self::$log_dir}, exit 1";
 				Log::log_step ( $msg, 'init', true );
 				exit ( 1 );
 			}
 		}
 		
-		$running_lock = self::$cache_dir . "{$TABLE}_running.pid";
+		$running_lock = self::$cache_dir . "{$TABLE}-running.pid";
 		$running_lock_content = @file_get_contents ( $running_lock );
 		if (! empty ( $running_lock_content ))
 		{
@@ -82,53 +82,70 @@ class Increment_Backup_To_Hive
 		}
 	}
 	
-	// 检查$row的格式和hive建表语句是否一致
+	// 检测从数据源读到的行数据是否和hive建表语句一致
+	static protected $hive_cols;
 	static protected function check_row(Array $row)
 	{
+	    if(empty(static::$hive_cols))
+	    {
+	        $hive_schema_fn = "{self::$cache_dir}{$TABLE}-schema.sql";
+	        $hive_schema = file_get_contents ( $hive_schema_fn );
+	        //extract column names
+	        preg_match("/\((\b*\,?\b*\`?\w\`\b*\w)\)/", $subject);
+	    }
+	    
+	    $ct_0=count(static::$hive_cols);
+	    $ct_1=count($row);
+	    if($ct_0 !== $ct_1 )
+	    {
+	        $msg="row column num:{$ct_0} not match hive table schema column num:{$ct_1}, exit 1, row columns:" . var_export($row, true) . ", hive_cols:" . var_export(static::$hive_cols, true);
+	        Log::log_step($msg, 'check_row', true);
+	        exit(1);
+	    }
+	        $idx=0;
+	        foreach ($row as $k=>$v)
+	        {
+	            if($k !== static::$hive_cols[$idx])
+	            {
+	                $msg="row column:{$k} not match hive table schema column:{static::$hive_cols[$idx]}, exit 1, row columns:" . var_export($row, true) . ", hive_cols:" . var_export(static::$hive_cols, true);
+	                Log::log_step($msg, 'check_row', true);
+	                exit(1);
+	            }
+	            $idx++;
+	        }
 	}
 	
-	// 灏濊瘯鑾峰彇涓�鏄熸湡閽辩殑ID
-	static protected function id_end($id_max)
+	static protected function id_end()
 	{
-		$ID_END = null;
+	    global $TABLE_AUTO_INCREMENT_COLUMN;
+	    global $TABLE;
 		
-		$now = time ();
-		$week_ago = $now - 7 * 24 * 3600;
-		$now_date = date ( "Ymd", $now );
-		$week_ago_date = date ( "Ymd", $week_ago );
-		// log浠婂ぉ鐨刬d_max鍊�
-		$msg = "{$now_date}:{$id_max}";
-		Log::log_step ( $msg, 'id_max' );
+	    $ID_END=null;
+	    try 
+	    {
+	       if(empty($TABLE_AUTO_INCREMENT_COLUMN))
+	       {
+	           static::$dbh->query("SELECT COUNT(*) FROM `{$TABLE}`");
+	       }else
+	       {
+	           static::$dbh->query("SELECT ($TABLE_AUTO_INCREMENT_COLUMN) FROM `{$TABLE}`");
+	       }
 		
-		$id_max_fp = __DIR__ . '/log/' . TABLE . '-id_max.log'; // 鍏堜粠log鏂囦欢涓璸arse
-		$file_str = @file_get_contents ( $id_max_fp );
-		$lines = explode ( "\n", $file_str );
-		$lines_ct = count ( $lines );
-		for($i = 0; $i < $lines_ct; $i ++)
-		{
-			$line = $lines [$i];
-			preg_match ( "/{$week_ago_date}:(\d+)/", $line, $matches );
-			if (isset ( $matches [1] ))
-			{
-				$ID_END = $matches [1];
-				Log::log_step ( "ID_END:{$ID_END} of {$week_ago_date} parsed in {$id_max_fp}", 'id_end' );
-				return $ID_END;
-			}
-		}
-		
-		$msg = "ID_END of {$week_ago_date} not found in {$id_max_fp}, set it to id_max:{$id_max}";
-		Log::log_step ( $msg, 'id_end' );
-		$ID_END = $id_max;
+		$ID_END ++;
+	    }catch(\Exception $e)
+	    {
+	        
+	    }
 		return $ID_END;
 	}
 	
-	// 灏濊瘯鑾峰彇琛↖D_START鐨勫嚱鏁�
+	
 	static protected function id_start()
 	{
-		$exportToText_id_fp = __DIR__ . '/log/' . TABLE . '-exportToText_id.log'; // 鍏堜粠log鏂囦欢涓璸arse
+	    global $TABLE;
+		$exportedId_fn = static::$log_dir . $TABLE . '-exportedId.log';
 		
-		$ID_START = null;
-		$file_str = @file_get_contents ( $exportToText_id_fp );
+		$file_str = @file_get_contents ( $exportedId_fn );
 		$lines = explode ( "\n", $file_str );
 		$lines_ct = count ( $lines );
 		for($i = $lines_ct - 1; $i >= $lines_ct - 5 && $i >= 0; $i --) // 鍙鍊掓暟5琛�
@@ -145,65 +162,7 @@ class Increment_Backup_To_Hive
 			$msg = "ID_START:{$ID_START} is parsed in last line of {$exportToText_id_fp}";
 			Log::log_step ( $msg, 'id_start' );
 			return $ID_START;
-		} else // 娌arse鍒板垯闇�瑕佹墜鍔ㄨ緭鍏�
-		{
-			$msg = "No id found in last line of {$exportToText_id_fp}.\nThis must be the first execution of this script, create hive table if not exits:" . HIVE_TABLE . "\n\n";
-			Log::log_step ( $msg, "hiveTableCreate" );
-			// 鍒涘缓hive琛�
-			$sql_table_fn = __DIR__ . "/" . TABLE . ".sql";
-			if (! file_exists ( $sql_table_fn ))
-			{
-				$msg = "sql_table_fn:{$sql_table_fn} not found, exit!";
-				Log::log_step ( $msg, 'sql_table_fn_error', true );
-				exit ();
-			}
-			$o = null;
-			$r = null;
-			$exec_str = "hive -e 'use {$sql_table_fn}'";
-			exec ( $exec_str, $o, $r );
-			if ($r !== 0)
-			{
-				$msg = var_export ( $o, true );
-				Log::log_step ( $msg, 'sql_table_fn_error', true );
-				exit ();
-			}
-			Log::log_step ( "create hive table if not exits done...sql_table_fn:{$sql_table_fn}", "hiveTableCreate" );
-			
-			$TIME_OUT = 60;
-			$msg = "input ID_START(timeout:{$TIME_OUT}s):\n";
-			Log::log_step ( $msg, 'id_start' );
-			
-			$read = array (
-					STDIN 
-			);
-			$write = NULL;
-			$except = NULL;
-			$num_changed_streams = stream_select ( $read, $write, $except, $TIME_OUT ); // 300s瓒呮椂
-			if (false === $num_changed_streams)
-			{
-				Log::log_step ( "stream_select error", 'id_start', true );
-				exit ();
-			} elseif ($num_changed_streams > 0)
-			{
-				$arg = trim ( fgets ( STDIN ) );
-				$ID_START = intval ( $arg );
-				
-				Log::log_step ( "ID_START is set:{$ID_START}\nplease make sure the hive table:" . HIVE_TABLE . " is empty and files with prefix:" . TABLE . " in data/* is deleted...\ntype 'yes' if you are sure(initialization done, add this script to cron for everyday update), otherwise exit if you are not sure(abandon initialization)", 'start' );
-				$arg = trim ( fgets ( STDIN ) );
-				if ($arg !== 'yes')
-				{
-					Log::log_step ( "typed {$arg}, exit", 'id_start' );
-					exit ();
-				} else
-				{
-					Log::log_step ( "typed {$arg}, continue", 'id_start' );
-				}
-			} else
-			{
-				Log::log_step ( "stream_select timeout:{$TIME_OUT},exit", 'id_start', true );
-				exit ();
-			}
-		}
+		} 
 		return $ID_START;
 	}
 	static protected function flushToHive($create_date_partition_lt = null)

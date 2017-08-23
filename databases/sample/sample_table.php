@@ -15,6 +15,9 @@ $TABLE = "sample_table";
  */
 $TABLE_AUTO_INCREMENT_COLUMN = "id";
 
+//默认每次从数据源读多少行数据
+$TABLE_BATCH=1000;
+
 //导入hive数据库名，没有则自动创建
 $HIVE_DB = "sample";
 

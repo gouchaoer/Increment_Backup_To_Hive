@@ -1,15 +1,15 @@
 <?php
 class Increment_Backup_To_Hive
 {
-	static private $config_arr;
-	static private $cache_dir;
-	static private $log_dir;
-	static protected $dbh;
+	private static $config_arr;
+	private static $cache_dir;
+	private static $log_dir;
+	protected static $dbh;
 	static protected function init()
 	{
 		global $TABLE;
 		global $WORK_DIR;
-
+		
 		ini_set ( 'memory_limit', - 1 );
 		set_time_limit ( 0 );
 		
@@ -17,11 +17,11 @@ class Increment_Backup_To_Hive
 		
 		$CONFIG_PATH = $WORK_DIR . "config.ini";
 		self::$config_arr = parse_ini_file ( $CONFIG_PATH );
-		if(empty(self::$config_arr))
+		if (empty ( self::$config_arr ))
 		{
-			$msg="read config error:{$CONFIG_PATH}, exit 1";
-			Log::log_step($msg, 'init', true);
-			exit(1);
+			$msg = "read config error:{$CONFIG_PATH}, exit 1";
+			Log::log_step ( $msg, 'init', true );
+			exit ( 1 );
 		}
 		
 		self::$cache_dir = $WORK_DIR . "/cache/";
@@ -30,7 +30,7 @@ class Increment_Backup_To_Hive
 			if (! mkdir ( self::$cache_dir, 0777, true ))
 			{
 				$msg = "Failed to create folder:{self::$cache_dir}, exit 1";
-				Log::log_step($msg, 'init', true);
+				Log::log_step ( $msg, 'init', true );
 				exit ( 1 );
 			}
 		}
@@ -41,7 +41,7 @@ class Increment_Backup_To_Hive
 			if (! mkdir ( self::$log_dir, 0777, true ))
 			{
 				$msg = "Failed to create folder:{self::$log_dir}, exit 1";
-				Log::log_step($msg, 'init', true);
+				Log::log_step ( $msg, 'init', true );
 				exit ( 1 );
 			}
 		}
@@ -63,31 +63,28 @@ class Increment_Backup_To_Hive
 				Log::log_step ( $msg, 'init', true );
 			}
 		}
-
+		
 		register_shutdown_function ( function () use ($running_lock)
 		{
 			@unlink ( $running_lock );
 			Log::log_step ( "unlink {$running_lock}", 'init' );
 		} );
 		
-		
-		try 
+		try
 		{
-			self::$dbh = new PDO(self::$config_arr['DB_DSN'], self::$config_arr['DB_USER'], self::$config_arr['DB_PASSWD']);
-			self::$dbh->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-		}
-		catch (PDOException $e) 
+			self::$dbh = new PDO ( self::$config_arr ['DB_DSN'], self::$config_arr ['DB_USER'], self::$config_arr ['DB_PASSWD'] );
+			self::$dbh->setAttribute ( PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION );
+		} catch ( PDOException $e )
 		{
-			$msg =  "PDO Connection failed, exit 1... " . $e->getMessage();
-			Log::log_step($msg);
-			exit(1);
+			$msg = "PDO Connection failed, exit 1... " . $e->getMessage ();
+			Log::log_step ( $msg );
+			exit ( 1 );
 		}
 	}
 	
 	// 检查$row的格式和hive建表语句是否一致
 	static protected function check_row(Array $row)
 	{
-		
 	}
 	
 	// 灏濊瘯鑾峰彇涓�鏄熸湡閽辩殑ID
@@ -313,61 +310,48 @@ EOL;
 		global $HIVE_FORMAT;
 		global $HIVE_PARTITION;
 		
-		//check if hive table exists
-		$o=null;
-		$r=null;
-		$exec_str="hive -e 'CREATE DATABASE IF NOT EXISTS `{$HIVE_DB}`; USE `{$HIVE_DB}`; create table `{$HIVE_TABLE}`(`test` string); drop table `{$HIVE_TABLE}`' 2>&1";
+		// check if hive table exists
+		$o = null;
+		$r = null;
+		$exec_str = "hive -e 'CREATE DATABASE IF NOT EXISTS `{$HIVE_DB}`; USE `{$HIVE_DB}`; create table `{$HIVE_TABLE}`(`test` string); drop table `{$HIVE_TABLE}`' 2>&1";
 		exec ( $exec_str, $o, $r );
-		if($r!==0)
+		if ($r !== 0)
 		{
-			$o_text = '';
-			foreach ($o as $k=>$line)
-			{
-				$o_text .= $line;
-				$o_text .="\n";
-			}
+			$o_text = implode ( "\n", $o );
 			if (stripos ( $o_text, 'already exists' ) !== false)
 			{
 				$msg = "HIVE_TABLE:{$HIVE_TABLE} already exists in HIVE_DB:{$HIVE_DB}, you must delete it first, use `php {$argv[0]} delete`, exit 1";
-				Log::log_step ( $msg ,'controller_create', true);
-				$msg = "\n\nexec output:\n{$o_text}";
-				Log::log_step ( $msg ,'controller_create', true);
+				Log::log_step ( $msg, 'controller_create', true );
+				$msg = "exec_str:{$exec_str}, exec output:{$o_text}";
+				Log::log_step ( $msg, 'controller_create', true );
 				exit ( 1 );
-			}else
+			} else
 			{
-				$msg = "unknow error, exit 1";
-				Log::log_step ( $msg ,'controller_create', true);
-				$msg = "\n\nexec output:\n{$o_text}";
-				Log::log_step ( $msg ,'controller_create', true);
+				$msg = "unknow error, exit 1, exec_str:{$exec_str}, exec output:{$o_text}";
+				Log::log_step ( $msg, 'controller_create', true );
 				exit ( 1 );
 			}
 		}
-		//check if hive table log & cache exists
-		$hive_table_log=self::$log_dir . "{$TABLE}-*";
-		$hive_table_log_files = glob($hive_table_log);
-		$hive_table_cache=self::$cache_dir . "{$TABLE}-*";
-		$hive_table_cache_files = glob($hive_table_cache);
-		$files =  array_merge($hive_table_log_files, $hive_table_cache_files);
-		if(!empty($files))
+		// check if hive table log & cache exists
+		$hive_table_log = self::$log_dir . "{$TABLE}-*";
+		$hive_table_log_files = glob ( $hive_table_log );
+		$hive_table_cache = self::$cache_dir . "{$TABLE}-*";
+		$hive_table_cache_files = glob ( $hive_table_cache );
+		$files = array_merge ( $hive_table_log_files, $hive_table_cache_files );
+		if (! empty ( $files ))
 		{
-			$msg="TABLE:{$TABLE} log & cache exists, you must delete it first, use `php {$argv[0]} delete`, exit 1";
-			Log::log_step ( $msg ,'controller_create', true);
-			$files_text='';
-			foreach ($files as $v)
-			{
-				$files_text .= $v;
-				$files_text .="\n";
-			}
-			$msg= "\n\nlog & cache files:\n{$files_text}";
-			Log::log_step($msg, 'controller_create', true);
-			exit(1);
+			$msg = "TABLE:{$TABLE} log & cache exists, you must delete it first, use `php {$argv[0]} delete`, exit 1";
+			Log::log_step ( $msg, 'controller_create', true );
+			$files_text = implode ( "\n", $files );
+			$msg = "log & cache files:{$files_text}";
+			Log::log_step ( $msg, 'controller_create', true );
+			exit ( 1 );
 		}
 		
-		
-		//prepare hive table schema file
-		$msg="generating hive table schema from data source...";
-		Log::log_step($msg);
-		//https://stackoverflow.com/questions/5428262/php-pdo-get-the-columns-name-of-a-table
+		// prepare hive table schema file
+		$msg = "generating hive table schema from data source...";
+		Log::log_step ( $msg );
+		// https://stackoverflow.com/questions/5428262/php-pdo-get-the-columns-name-of-a-table
 		$sql = "SELECT * from {$TABLE} LIMIT 1";
 		$columns_name = [ ];
 		$colmuns_pdo_type = [ ];
@@ -380,49 +364,49 @@ EOL;
 				$columns_name [] = $col ['name'];
 				$colmuns_pdo_type [] = $col ['pdo_type'];
 			}
-		} catch (\Exception $e)
+		} catch ( \Exception $e )
 		{
-			$msg="pdo error, sql:{$sql}, exit 1..." .  $e->getMessage();
-			Log::log_step($msg, 'controller_create', true);
-			exit(1);
+			$msg = "pdo error, sql:{$sql}, exit 1..." . $e->getMessage ();
+			Log::log_step ( $msg, 'controller_create', true );
+			exit ( 1 );
 		}
 		
-		if(empty($columns_name))
+		if (empty ( $columns_name ))
 		{
-			$msg="empty column returned, sql:{$sql}, exit 1";
-			Log::log_step($msg, 'controller_create', true);
-			exit(1);
+			$msg = "empty column returned, sql:{$sql}, exit 1";
+			Log::log_step ( $msg, 'controller_create', true );
+			exit ( 1 );
 		}
 		
-		$columns_str='';
-		foreach ($columns_name as $k=>$name)
+		$columns_str = '';
+		foreach ( $columns_name as $k => $name )
 		{
-			if($k!==0)
+			if ($k !== 0)
 			{
-				$columns_str .=",\n";
+				$columns_str .= ",\n";
 			}
-			//map pdo_type to hive type
-			//PDO has only 3 data types, sett http://php.net/manual/en/pdo.constants.php
-			$pdo_type = $colmuns_pdo_type[$k];
+			// map pdo_type to hive type
+			// PDO has only 3 data types, sett http://php.net/manual/en/pdo.constants.php
+			$pdo_type = $colmuns_pdo_type [$k];
 			$hive_type = '';
-			if($pdo_type===PDO::PARAM_BOOL)
+			if ($pdo_type === PDO::PARAM_BOOL)
 			{
-				$hive_type='BOOLEAN';
-			}else if($pdo_type===PDO::PARAM_INT)
+				$hive_type = 'BOOLEAN';
+			} else if ($pdo_type === PDO::PARAM_INT)
 			{
-				$hive_type='INT';
-			}else//NO FLOAT, DECIMAL, TIMESTAMP, BINARY
+				$hive_type = 'INT';
+			} else // NO FLOAT, DECIMAL, TIMESTAMP, BINARY
 			{
-				$hive_type='STRING';
+				$hive_type = 'STRING';
 			}
 			
-			$columns_str .="`{$name}` {$hive_type}";
+			$columns_str .= "`{$name}` {$hive_type}";
 		}
 		
-		$hive_format_str = empty($HIVE_FORMAT)?'TEXTFILE':$HIVE_FORMAT;
-		$partition_str = $HIVE_PARTITION===null?'':'PARTITIONED BY (`partition` string)';
+		$hive_format_str = empty ( $HIVE_FORMAT ) ? 'TEXTFILE' : $HIVE_FORMAT;
+		$partition_str = $HIVE_PARTITION === null ? '' : 'PARTITIONED BY (`partition` string)';
 		
-		$hive_schema_template=<<<EOL
+		$hive_schema_template = <<<EOL
 USE {$HIVE_DB};
 CREATE TABLE {$HIVE_TABLE} (
 {$columns_str}
@@ -434,14 +418,14 @@ FIELDS TERMINATED BY '\001'
 LINES TERMINATED BY '\n'
 STORED AS {$hive_format_str};
 EOL;
-		$hive_schema_fn = "{self::$cache_dir}{$TABLE}_schema.sql";
-		file_put_contents($hive_schema_fn, $hive_schema_template);
-
-		$msg="hive table schema generated:{$hive_schema_fn}, change it if you need.\nuse {$hive_schema_fn} to create hive table?\ntype (Y/y) for yes, others for no.";
-		Log::log_step($msg);
+		$hive_schema_fn = "{self::$cache_dir}{$TABLE}-schema.sql";
+		file_put_contents ( $hive_schema_fn, $hive_schema_template );
 		
-		$type = fgets(STDIN);
-		if($type==='Y'||$type==='y')
+		$msg = "hive table schema generated:{$hive_schema_fn}, change it if you need.\nuse {$hive_schema_fn} to create hive table?\ntype (Y/y) for yes, others for no.";
+		Log::log_step ( $msg );
+		
+		$type = fgets ( STDIN );
+		if ($type === 'Y' || $type === 'y')
 		{
 			$o = null;
 			$r = null;
@@ -449,94 +433,44 @@ EOL;
 			exec ( $exec_str, $o, $r );
 			if ($r !== 0)
 			{
-				$o_text = '';
-				foreach ( $o as $k => $line )
-				{
-					$o_text .= $line;
-					$o_text .= "\n";
-				}
-				
+				$o_text = implode ( "\n", $o );
 				$msg = "HIVE_TABLE:{$HIVE_TABLE} create failed, exit 1";
 				Log::log_step ( $msg, 'controller_create', true );
 				$msg = "\n\nexec output:\n{$o_text}";
 				Log::log_step ( $msg, 'controller_create', true );
-			}else
+			} else
 			{
 				$msg = "HIVE_TABLE:{$HIVE_TABLE} created";
-				Log::log_step ( $msg);
+				Log::log_step ( $msg );
 			}
-
-		}else
+		} else
 		{
-			$msg="typed:{$type} for no, exit 0";
-			Log::log_step($msg);
-			exit(0);
+			$msg = "typed:{$type} for no, exit 0";
+			Log::log_step ( $msg );
+			exit ( 0 );
 		}
 		
-		//Backup DB_BATCH data to hive
-		$DB_BATCH = empty(self::$config_arr['DB_BATCH'])?1000:self::$config_arr['DB_BATCH'];
-		$msg=<<<EOL
+		// Backup DB_BATCH data to hive
+		$DB_BATCH = empty ( self::$config_arr ['DB_BATCH'] ) ? 1000 : self::$config_arr ['DB_BATCH'];
+		$msg = <<<EOL
 		create done, before you add {$argv[0]} to cron.sh, do you want to backup {$DB_BATCH} rows to hive for test?
 		type (Y/y) for yes, others for no.
 EOL;
-		Log::log_step($msg);
+		Log::log_step ( $msg );
 		
-		$type = fgets(STDIN);
-		if($type==='Y'||$type==='y')
+		$type = fgets ( STDIN );
+		if ($type === 'Y' || $type === 'y')
 		{
-			static::controller_backup();
-		}else
+			static::controller_backup ();
+		} else
 		{
-			$msg="exit..";
-			Log::log_step($msg);
-			exit(0);
+			$msg = "typed:{$type} for no, exit 0..";
+			Log::log_step ( $msg );
+			exit ( 0 );
 		}
 	}
 	static protected function controller_backup()
 	{
-	
-	}
-	static protected function controller_delete()
-	{
-	
-	}
-	static protected function run()
-	{
-		static::init();
-		
-		global $argv;
-		$supported_arguments =['create','backup','delete'];
-		$arg = empty($argv[1])?'empty':$argv[1];
-		if(!in_array($argv[1], array_keys($supported_arguments)))
-		{
-			$msg=<<<EOL
-			{$arg} is not supported argument, exit 1:
-			create: generate hive table schema file, create hive table, start backup to hive
-			backup: backup to hive
-			delete: drop hive table, delete hive table schema file, delete log, delete cache
-EOL;
-			Log::log_step($msg, 'run', true);
-			exit(1);
-		}
-		
-		if($arg===$supported_arguments[0])
-		{
-			static::controller_create();
-		}
-		else if($arg===$supported_arguments[1])
-		{
-			
-		}
-		else if ($arg===$supported_arguments[2])
-		{
-			
-		}else
-		{
-			$msg="{$arg} not supported, exit 1";
-			Log::log_step($msg);
-			exit(1);
-		}
-		
 		
 		// 确定从哪个id开始
 		$ID = Util::id_start ();
@@ -661,6 +595,87 @@ EOL;
 			$rows = null;
 		}
 	}
+	static protected function controller_delete()
+	{
+		global $HIVE_DB;
+		global $HIVE_TABLE;
+		
+		// delete cache&log
+		$hive_table_log = self::$log_dir . "{$TABLE}-*";
+		$hive_table_log_files = glob ( $hive_table_log );
+		$hive_table_cache = self::$cache_dir . "{$TABLE}-*";
+		$hive_table_cache_files = glob ( $hive_table_cache );
+		$files = array_merge ( $hive_table_log_files, $hive_table_cache_files );
+		$files_text = implode ( "\n", $files );
+		$msg = "do you want to drop hive table:{$HIVE_TABLE}, and delete all cache & log files:{$files_text}?\ntype (Y/y) for yes, others for no.";
+		$type = fgets ( STDIN );
+		if ($type === 'Y' || $type === 'y')
+		{
+			// DROP hive table
+			$o = null;
+			$r = null;
+			$exec_str = "hive -e 'USE `{$HIVE_DB}`; DROP TABLE IF EXISTS `{$HIVE_TABLE}`' 2>&1";
+			exec ( $exec_str, $o, $r );
+			if ($r !== 0)
+			{
+				$o_text = implode ( "\n", $o );
+				$msg = "unknow error, exit 1, exec_str:{$exec_str}, exec output:{$o_text}";
+				Log::log_step ( $msg, 'controller_delete', true );
+				exit ( 1 );
+			}
+			// unlink files
+			foreach ( $files as $file )
+			{
+				@unlink ( $file );
+			}
+			
+			$msg = "delete done, exit 0...";
+			Log::log_step ( $msg );
+			exit ( 0 );
+		} else
+		{
+			$msg = "typed:{$type} for no, exit..";
+			Log::log_step ( $msg );
+			exit ( 0 );
+		}
+	}
+	static protected function run()
+	{
+		static::init ();
+		
+		global $argv;
+		$supported_arguments = [ 
+				'create',
+				'backup',
+				'delete' 
+		];
+		$arg = empty ( $argv [1] ) ? 'empty' : $argv [1];
+		if (! in_array ( $argv [1], array_keys ( $supported_arguments ) ))
+		{
+			$msg = <<<EOL
+			{$arg} is not supported argument, exit 1:
+			create: generate hive table schema file, create hive table, start backup to hive
+			backup: backup to hive
+			delete: drop hive table, delete hive table schema file, delete log, delete cache
+EOL;
+			Log::log_step ( $msg, 'run', true );
+			exit ( 1 );
+		}
+		
+		if ($arg === $supported_arguments [0])
+		{
+			static::controller_create ();
+		} else if ($arg === $supported_arguments [1])
+		{
+		} else if ($arg === $supported_arguments [2])
+		{
+		} else
+		{
+			$msg = "{$arg} not supported, exit 1";
+			Log::log_step ( $msg );
+			exit ( 1 );
+		}
+	}
 }
 
 // 简单的Log类
@@ -669,15 +684,14 @@ class Log
 	const LOG_MAX = 8 * 1204 * 1024; // 8M
 	protected static $start = null;
 	protected static $log = null;
-	private static $log_dir=null;
-	private static $app=null;
-	
+	private static $log_dir = null;
+	private static $app = null;
 	static public function setting($app = 'table')
 	{
 		global $WORK_DIR;
 		
 		self::$start = time ();
-
+		
 		self::$log_dir = $WORK_DIR . "/log/";
 		if (! file_exists ( self::$log_dir ))
 		{
@@ -690,14 +704,14 @@ class Log
 				exit ( 1 );
 			}
 		}
-
+		
 		$tz = date_default_timezone_get ();
 		if ($tz === "UTC") // 为设置时区
 		{
 			date_default_timezone_set ( 'Asia/Shanghai' );
 		}
 		
-		self::$app=$app;
+		self::$app = $app;
 	}
 	static protected function log_file($str, $cate = null)
 	{

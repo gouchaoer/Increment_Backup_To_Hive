@@ -467,77 +467,50 @@ EOL;
 		// Backup DB_BATCH data to hive
 		$DB_BATCH = empty ( self::$config_arr ['DB_BATCH'] ) ? 1000 : self::$config_arr ['DB_BATCH'];
 		$msg = <<<EOL
-		create done, before you add {$argv[0]} to cron.sh, do you want to backup {$DB_BATCH} rows to hive for test?
-		type (Y/y) for yes, others for no.
+		create done, use `php {$argv[0]} backup` to backup to hive, you can add it to cron.sh for daily backup
 EOL;
 		Log::log_step ( $msg );
-		
-		$type = fgets ( STDIN );
-		if ($type === 'Y' || $type === 'y')
+	}
+	
+	static protected function check_enter_pressed()
+	{
+		$read = [STDIN];
+		$write = [];
+		$except = [];
+		$result = stream_select($read, $write, $except, 0);
+		if($result === false) 
+			throw new Exception('stream_select failed');
+		if($result === 0) 
+			return false;
+		$data = stream_get_line($fd, 1);
+		if(strpos($data, "\n")!==false)
 		{
-			static::controller_backup ();
-		} else
-		{
-			$msg = "typed:{$type} for no, exit 0..";
-			Log::log_step ( $msg );
-			exit ( 0 );
+			return true;
 		}
 	}
+	
 	static protected function controller_backup()
 	{
+		global $TABLE;
+		global $TABLE_AUTO_INCREMENT_COLUMN;
+		global $HIVE_PARTITION;
+		global $ROW_CALLBACK;
 		
-		// 确定从哪个id开始
-		$ID = Util::id_start ();
+		$ID_START = static::id_start ();
+		$ID_END = static::id_end ();
 		
-		// 连接mysql
-		$mysqli = new mysqli ( $CONFIG_ARR ['MYSQL_ADDR'], $CONFIG_ARR ['MYSQL_USER'], $CONFIG_ARR ['MYSQL_PASSWD'], $CONFIG_ARR ['MYSQL_DB'] );
-		if ($mysqli->connect_errno)
-		{
-			$msg = "Connect failed:" . $mysqli->connect_error;
-			Log::log_step ( $msg, 'mysqli_error' );
-			exit ();
-		}
-		$result = $mysqli->query ( 'set names utf8' );
-		if (! $result)
-		{
-			echo $mysqli->error;
-			exit ();
-		}
-		
-		// 确定从id最大值
-		$result = $mysqli->query ( "select max(ID) from " . TABLE );
-		if (! $result)
-		{
-			$msg = $mysqli->error;
-			Log::log_step ( $msg, 'mysqli_error' );
-			exit ();
-		}
-		$value = $result->fetch_array ( MYSQLI_NUM );
-		$ID_MAX = is_array ( $value ) ? $value [0] : null;
-		$ID_END = Util::id_end ( $ID_MAX );
-		if (empty ( $ID_END ))
-		{
-			Log::log_step ( "ID_END is empty, error and exit!", 'id_end' );
-			exit ();
-		} else
-		{
-			Log::log_step ( "ID_END:{$ID_END}", 'id_end' );
-		}
-		
-		// 开始批处理从mysql导出到hive
 		while ( true )
 		{
-			static $CONFIG_STR = null;
-			if (empty ( $CONFIG_STR ))
+			//if ENTER is pressed, stop backup
+			$enter_pressed = static::check_enter_pressed();
+			if($enter_pressed)
 			{
-				$CONFIG_STR = file_get_contents ( $CONFIG_PATH );
-			}
-			$CONFIG_STR_tmp = file_get_contents ( $CONFIG_PATH );
-			if ($CONFIG_STR_tmp !== $CONFIG_STR)
-			{
-				$msg = "{$CONFIG_PATH} changed, exit!";
+				$msg = "enter is pressed, stopping backup...";
+				Log::log_step ( $msg, 'controller_backup' );
+				
+				$msg = 'finally, flush data into hive';
 				Log::log_step ( $msg );
-				exit ();
+				Util::flushToHive ();
 			}
 			
 			$mem_sz = memory_get_usage ();

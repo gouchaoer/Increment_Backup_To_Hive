@@ -1,47 +1,65 @@
 <?php
-
 class Increment_Backup_To_Hive
 {
+	static $config_arr;
+	static $cache_dir;
 	static function init()
 	{
 		global $TABLE;
+		global $WORK_DIR;
+
 		ini_set ( 'memory_limit', - 1 );
 		set_time_limit ( 0 );
+		
 		Log::setting ( $TABLE . '.log' );
 		
-		$running_lock = __DIR__ . "/" . TABLE . "_running.pid";
+		$CONFIG_PATH = $WORK_DIR . "config.ini";
+		self::$config_arr = parse_ini_file ( $CONFIG_PATH );
+		if(empty(self::$config_arr))
+		{
+			$msg="format error:{$CONFIG_PATH}, exit 1";
+			Log::log_step($msg, 'init', true);
+			exit(1);
+		}
+		
+		self::$cache_dir = $WORK_DIR . "/cache/";
+		if (! file_exists ( self::$cache_dir ))
+		{
+			if (! mkdir ( self::$cache_dir, 0777, true ))
+			{
+				$msg = "Failed to create folder:{self::$cache_dir}, exit 1";
+				Log::log_step($msg, 'init', true);
+				exit ( 1 );
+			}
+		}
+		
+		$running_lock = self::$cache_dir . "{$TABLE}_running.pid";
 		$running_lock_content = @file_get_contents ( $running_lock );
 		if (! empty ( $running_lock_content ))
 		{
-			$pieces = explode("|", $running_lock_content);
-			$pid_old = $pieces[1];
-			if(file_exists("/proc/{$pid_old}"))
+			$pieces = explode ( "|", $running_lock_content );
+			$pid_old = $pieces [1];
+			if (file_exists ( "/proc/{$pid_old}" ))
 			{
-				$msg = "running_lock:{$running_lock} exist, running_lock_content:{$running_lock_content}, another program is running, exit";
+				$msg = "running_lock:{$running_lock} exist, running_lock_content:{$running_lock_content}, another program is running, exit 1";
 				Log::log_step ( $msg, 'init', true );
-				exit (1);
-			}
-			else
+				exit ( 1 );
+			} else
 			{
 				$msg = "running_lock:{$running_lock} exist, running_lock_content:{$running_lock_content}, another program unproperly exited, go on";
-				Log::log_step($msg, 'init', true);
+				Log::log_step ( $msg, 'init', true );
 			}
 		}
-		
-		$pid = getmypid();
-		$running_lock_msg = date ( 'Y-m-d H:i:s', time () ) . "|{$pid}";
-		file_put_contents ( $running_lock, $running_lock_msg );
-		function shutdown()
+
+		register_shutdown_function ( function () use ($running_lock)
 		{
-			global $running_lock;
 			@unlink ( $running_lock );
 			Log::log_step ( "unlink {$running_lock}", 'init' );
-		}
-		register_shutdown_function ( 'shutdown' );
+		} );
 	}
 	
-	//检查$row的格式和hive建表语句是否一致
-	static function check_row($row)
+	// 检查$row的格式和hive建表语句是否一致
+	static function check_row(Array $row)
 	{
 		
 	}
@@ -263,12 +281,26 @@ EOL;
 	
 	static function run()
 	{
+		global $argv;
+		$supported_commands =['create','backup','delete'];
+		if(empty($argv[1]) || !in_array($argv[1], array_keys($supported_commands)))
+		{
+			$cmd=empty($argv[1])?'empty':$argv[1];
+			$msg=<<<EOL
+			{$cmd} is not supported commands, exit 1:
+			create: generate hive table schema file, create hive table, start backup to hive
+			backup: backup to hive
+			delete: drop hive table, delete hive table schema file, delete log, delete cache
+EOL;
+			Log::log_step($msg, 'run', true);
+			exit(1);
+		}
+		
 		// 获取配置信息
-		$CONFIG_PATH =  __DIR__ . "/ddd.ini";
-		$CONFIG_ARR = parse_ini_file ($CONFIG_PATH );
+		
 		
 		// 确定从哪个id开始
-		$ID =Util::id_start();
+		$ID = Util::id_start ();
 		
 		// 连接mysql
 		$mysqli = new mysqli ( $CONFIG_ARR ['MYSQL_ADDR'], $CONFIG_ARR ['MYSQL_USER'], $CONFIG_ARR ['MYSQL_PASSWD'], $CONFIG_ARR ['MYSQL_DB'] );
@@ -295,7 +327,7 @@ EOL;
 		}
 		$value = $result->fetch_array ( MYSQLI_NUM );
 		$ID_MAX = is_array ( $value ) ? $value [0] : null;
-		$ID_END = Util::id_end($ID_MAX);
+		$ID_END = Util::id_end ( $ID_MAX );
 		if (empty ( $ID_END ))
 		{
 			Log::log_step ( "ID_END is empty, error and exit!", 'id_end' );
@@ -313,86 +345,84 @@ EOL;
 			{
 				$CONFIG_STR = file_get_contents ( $CONFIG_PATH );
 			}
-			$CONFIG_STR_tmp = file_get_contents ( $CONFIG_PATH  );
+			$CONFIG_STR_tmp = file_get_contents ( $CONFIG_PATH );
 			if ($CONFIG_STR_tmp !== $CONFIG_STR)
 			{
-				$msg =  "{$CONFIG_PATH} changed, exit!";
+				$msg = "{$CONFIG_PATH} changed, exit!";
 				Log::log_step ( $msg );
 				exit ();
 			}
-		
+			
 			$mem_sz = memory_get_usage ();
 			$mem_sz_pk = memory_get_peak_usage ();
 			$msg = "ID:{$ID},ID_BATCH:{$CONFIG_ARR['ID_BATCH']}, mem_sz:{$mem_sz}, mem_sz_pk:{$mem_sz_pk}";
 			Log::log_step ( $msg );
-		
+			
 			$ID2 = $ID + $CONFIG_ARR ['ID_BATCH'];
-			if($ID2>$ID_END)
-				$ID2=$ID_END+1;
-				if ($ID > $ID_END)
+			if ($ID2 > $ID_END)
+				$ID2 = $ID_END + 1;
+			if ($ID > $ID_END)
+			{
+				$msg = "ID:{$ID} > ID_END:{$ID_END}, complete!";
+				Log::log_step ( $msg, 'complete' );
+				
+				$msg = 'finally, flushToHive() for the newest day';
+				Log::log_step ( $msg );
+				Util::flushToHive ();
+				
+				break;
+			}
+			
+			$result = $mysqli->query ( "SELECT * from " . TABLE . " where ID>={$ID} and ID<{$ID2} order by CREATE_TIME" );
+			if (! $result)
+			{
+				$msg = $mysqli->error;
+				Log::log_step ( $msg, 'mysqli_error' );
+				exit ();
+			}
+			$rows = $result->fetch_all ( MYSQLI_ASSOC );
+			
+			if (count ( $rows > 0 ))
+			{
+				$rows_new = [ ];
+				
+				$create_date_partition = '0000-00-00';
+				
+				foreach ( $rows as $row )
 				{
-					$msg = "ID:{$ID} > ID_END:{$ID_END}, complete!";
-					Log::log_step ( $msg, 'complete' );
-		
-					$msg = 'finally, flushToHive() for the newest day';
-					Log::log_step ( $msg );
-					Util::flushToHive ();
-		
-					break;
-				}
-		
-				$result = $mysqli->query ( "SELECT * from " . TABLE ." where ID>={$ID} and ID<{$ID2} order by CREATE_TIME" );
-				if (! $result)
-				{
-					$msg = $mysqli->error;
-					Log::log_step ( $msg, 'mysqli_error' );
-					exit ();
-				}
-				$rows = $result->fetch_all ( MYSQLI_ASSOC );
-		
-				if (count ( $rows > 0 ))
-				{
-					$rows_new = [ ];
-		
-					$create_date_partition = '0000-00-00';
-		
-					foreach ( $rows as $row )
+					$row_new = $row;
+					
+					$create_date = $row ['CREATE_TIME'];
+					$create_date_partition_tmp = substr ( $create_date, 0, 7 ); // 只取月份
+					if ($create_date_partition === '0000-00-00' && ! empty ( $create_date_partition_tmp ))
 					{
-						$row_new = $row;
-							
-						$create_date = $row ['CREATE_TIME'];
-						$create_date_partition_tmp = substr ( $create_date, 0, 7 );//只取月份
-						if ($create_date_partition === '0000-00-00' && ! empty ( $create_date_partition_tmp ))
-						{
-							$create_date_partition = $create_date_partition_tmp;
-						}
-							
-						if (! empty ( $create_date_partition_tmp ) && $create_date_partition != $create_date_partition_tmp) // 跳月份了
-						{
-							Log::log_step ( "jump_date:{$create_date_partition_tmp}" );
-							Util::exportToText ( $rows_new, $create_date_partition );
-							$rows_new = [ ];
-							$create_date_partition = $create_date_partition_tmp;
-						}
-						$rows_new [] = $row_new;
+						$create_date_partition = $create_date_partition_tmp;
 					}
-					Util::exportToText ( $rows_new, $create_date_partition );
-					$rows_new = [ ];
-					// 处理完毕，记录ID
-					$msg = "exportToText_id:id>={$ID} and id<{$ID2}";
-					Log::log_step ( $msg, 'exportToText_id' );
-		
-					//Util::flushToHive ( $create_date_partition ); // 把$create_date_partition日期之前的都导入hive，这样就尽可能保证所有日期的数据只导入一次
+					
+					if (! empty ( $create_date_partition_tmp ) && $create_date_partition != $create_date_partition_tmp) // 跳月份了
+					{
+						Log::log_step ( "jump_date:{$create_date_partition_tmp}" );
+						Util::exportToText ( $rows_new, $create_date_partition );
+						$rows_new = [ ];
+						$create_date_partition = $create_date_partition_tmp;
+					}
+					$rows_new [] = $row_new;
 				}
-		
-				$ID += $CONFIG_ARR ['ID_BATCH'];
-				$rs = null;
-				$rows = null;
+				Util::exportToText ( $rows_new, $create_date_partition );
+				$rows_new = [ ];
+				// 处理完毕，记录ID
+				$msg = "exportToText_id:id>={$ID} and id<{$ID2}";
+				Log::log_step ( $msg, 'exportToText_id' );
+				
+				// Util::flushToHive ( $create_date_partition ); // 把$create_date_partition日期之前的都导入hive，这样就尽可能保证所有日期的数据只导入一次
+			}
+			
+			$ID += $CONFIG_ARR ['ID_BATCH'];
+			$rs = null;
+			$rows = null;
 		}
 	}
 }
-
-
 
 // 简单的Log类
 class Log
@@ -405,20 +435,20 @@ class Log
 		global $WORK_DIR;
 		self::$start = time ();
 		$log_dir = $WORK_DIR . "/log/";
-		if(!file_exists($log_dir))
+		if (! file_exists ( $log_dir ))
 		{
-			if (!mkdir($structure, 0777, true)) 
+			if (! mkdir ( $log_dir, 0777, true ))
 			{
-				$msg = "Failed to create folder:{$log_dir}, exit";
+				$msg = "Failed to create folder:{$log_dir}, exit 1";
 				$fh = fopen ( 'php://stderr', 'a' );
 				fwrite ( $fh, $msg );
 				fclose ( $fh );
-				exit(1);
+				exit ( 1 );
 			}
 		}
-		self::$log = $log_dir. "{$fn}";
+		self::$log = $log_dir . "{$fn}";
 		$tz = date_default_timezone_get ();
-		if ($tz === "UTC") //为设置时区
+		if ($tz === "UTC") // 为设置时区
 		{
 			date_default_timezone_set ( 'Asia/Shanghai' );
 		}
@@ -433,14 +463,14 @@ class Log
 		{
 			$fn = str_replace ( '.log', "-{$cate}.log", self::$log );
 		}
-
+		
 		file_put_contents ( $fn, $str, FILE_APPEND );
-
+		
 		clearstatcache ();
 		$filesize = filesize ( $fn );
 		if ($filesize > self::LOG_MAX)
 		{
-				
+			
 			$old_fn = str_replace ( '.log', ".old.log", $fn );
 			@unlink ( $old_fn );
 			rename ( $fn, $old_fn );
@@ -460,8 +490,7 @@ class Log
 		if ($stderr === false)
 		{
 			echo $str;
-		}
-		else
+		} else
 		{
 			$fh = fopen ( 'php://stderr', 'a' );
 			fwrite ( $fh, $str );

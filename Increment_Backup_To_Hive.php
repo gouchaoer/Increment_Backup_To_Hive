@@ -13,7 +13,7 @@ class Increment_Backup_To_Hive
 		ini_set ( 'memory_limit', - 1 );
 		set_time_limit ( 0 );
 		
-		Log::setting ( $TABLE . '.log' );
+		Log::setting ( $TABLE );
 		
 		$CONFIG_PATH = $WORK_DIR . "config.ini";
 		self::$config_arr = parse_ini_file ( $CONFIG_PATH );
@@ -403,7 +403,7 @@ EOL;
 			$columns_str .= "`{$name}` {$hive_type}";
 		}
 		
-		$hive_format_str = empty ( $HIVE_FORMAT ) ? 'TEXTFILE' : $HIVE_FORMAT;
+		$hive_format_str = empty ( $HIVE_FORMAT ) ? 'TEXTFILE' :  strtoupper($HIVE_FORMAT);
 		$partition_str = $HIVE_PARTITION === null ? '' : 'PARTITIONED BY (`partition` string)';
 		
 		$hive_schema_template = <<<EOL
@@ -411,13 +411,27 @@ USE {$HIVE_DB};
 CREATE TABLE {$HIVE_TABLE} (
 {$columns_str}
 )
-PARTITIONED BY (`create_date_partition` string)
 {$partition_str}
 ROW FORMAT DELIMITED
 FIELDS TERMINATED BY '\001'
 LINES TERMINATED BY '\n'
 STORED AS {$hive_format_str};
 EOL;
+		if($hive_format_str!=='TEXTFILE')//如果不是TEXTFILE的话就需要创建一个TEXTFILE的tmp表
+		{
+			$hive_schema_template .=<<<EOL
+			
+CREATE TABLE {$HIVE_TABLE}__tmp (
+{$columns_str}
+)
+{$partition_str}
+ROW FORMAT DELIMITED
+FIELDS TERMINATED BY '\001'
+LINES TERMINATED BY '\n'
+STORED AS TEXTFILE;
+EOL;
+		}
+
 		$hive_schema_fn = "{self::$cache_dir}{$TABLE}-schema.sql";
 		file_put_contents ( $hive_schema_fn, $hive_schema_template );
 		
@@ -614,7 +628,7 @@ EOL;
 			// DROP hive table
 			$o = null;
 			$r = null;
-			$exec_str = "hive -e 'USE `{$HIVE_DB}`; DROP TABLE IF EXISTS `{$HIVE_TABLE}`' 2>&1";
+			$exec_str = "hive -e 'USE `{$HIVE_DB}`; DROP TABLE IF EXISTS `{$HIVE_TABLE}`; DROP TABLE IF EXISTS `{$HIVE_TABLE}__tmp`' 2>&1";
 			exec ( $exec_str, $o, $r );
 			if ($r !== 0)
 			{
@@ -654,9 +668,9 @@ EOL;
 		{
 			$msg = <<<EOL
 			{$arg} is not supported argument, exit 1:
-			create: generate hive table schema file, create hive table, start backup to hive
+			create: generate hive table schema and create it
 			backup: backup to hive
-			delete: drop hive table, delete hive table schema file, delete log, delete cache
+			delete: drop hive table, delete log, delete cache
 EOL;
 			Log::log_step ( $msg, 'run', true );
 			exit ( 1 );
@@ -667,8 +681,10 @@ EOL;
 			static::controller_create ();
 		} else if ($arg === $supported_arguments [1])
 		{
+			
 		} else if ($arg === $supported_arguments [2])
 		{
+			
 		} else
 		{
 			$msg = "{$arg} not supported, exit 1";

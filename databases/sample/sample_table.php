@@ -25,7 +25,7 @@ $HIVE_TABLE = "sample_table";
  *是否创建ORCFILE格式的hive表，对于占用磁盘太大的表使用ORCFILE格式压缩可以节约HDFS磁盘空间，此时设置`$HIVE_ORCFILE = true;`即可；如果本身表体积就不大就没必要使用ORCFILE，直接使用默认的TEXTFILE纯文本格式即可，此时设置`$HIVE_ORCFILE = false`
  *使用ORCFILE格式时，脚本在创建了名为`sample_table`的ORCFILE格式的hive表之后会再创建一个名为`sample_table_tmp`的TEXTFILE的临时hive表，从数据源把数据导入了`sample_table_tmp`表之后再转存到`sample_table`表，最后清空`sample_table_tmp`表
  */
-$HIVE_ORCFILE = false;
+$HIVE_FORMAT = null;
 
 
 /*

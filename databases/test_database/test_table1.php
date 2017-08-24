@@ -62,9 +62,14 @@ $HIVE_FORMAT = null;
 	 $partition = substr($created_date, 0, 7);
 	 return $partition;
  }
+ 
+ $HIVE_PARTITIONS = [
+ 'partition_1'=>function(Array $row){},
+ 'partition_2'=>function(Array $row){},
+ ]
  ```
  */
-$HIVE_PARTITION = null;
+$ROW_CALLBACK_PARTITIONS = null;
 
 
 /*
@@ -79,6 +84,6 @@ $HIVE_PARTITION = null;
  * 
  * 
  * */
-$ROW_CALLBACK = null;
+$ROW_CALLBACK_CHANGE = null;
 
 Increment_Backup_To_Hive::run();

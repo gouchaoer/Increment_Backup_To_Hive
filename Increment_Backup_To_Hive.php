@@ -260,33 +260,35 @@ EOL;
 			unlink ( $fn );
 		}
 	}
-	static protected function exportToText(Array $rows_new, string $create_date_partition)
+	static protected function exportToText(Array $rows_new)
 	{
 		if (count ( $rows_new ) === 0)
 		{
 			return;
 		}
-		// 鏋勯�爃ive鏍煎紡琛�
-		$text = '';
-		$text_sz = null;
-		foreach ( $rows_new as $k => $v )
+
+		$buffer = '';
+		$__PARTITIONS=null;
+		foreach ( $rows_new as $k => $row )
 		{
+			$__PARTITIONS_STR_tmp='';
+			if(!empty($row['__PARTITIONS']))
+			{
+				
+			}
 			$kk_tmp = 0;
-			
-			foreach ( $v as $kk => $vv )
+			foreach ( $row as $kk => $vv )
 			{
 				if ($kk_tmp !== 0)
 				{
-					$text .= "\001"; // hive琛ㄥ垎闅旂
+					$buffer .= "\001";
 				} else
 				{
 					$kk_tmp ++;
 				}
-				
-				// 杩囨护鎺夌壒娈婂瓧绗�
 				if (is_null ( $vv ))
 				{
-					$text .= "\N"; // hive鐨刵ull
+					$buffer .= "\N"; 
 				} else
 				{
 					$vv_tmp = str_replace ( [ 
@@ -298,10 +300,10 @@ EOL;
 							"\'",
 							"" 
 					], $vv );
-					$text .= $vv_tmp;
+					$$buffertext .= $vv_tmp;
 				}
 			}
-			$text .= "\n"; // hive鍙敮鎸乗n鎹㈣
+			$buffer .= "\n";
 		}
 		$text_sz = strlen ( $text );
 		$rows_new_ct = count ( $rows_new );
@@ -505,10 +507,13 @@ EOL;
 		global $TABLE_AUTO_INCREMENT_COLUMN;
 		global $HIVE_PARTITION;
 		global $ROW_CALLBACK;
+		global $TABLE_BATCH;
 		
 		$ID_START = static::id_start ();
 		$ID_END = static::id_end ();
-		
+		$ID=$ID_START;
+		try 
+		{
 		while ( true )
 		{
 			// if ENTER is pressed, stop backup
@@ -516,80 +521,101 @@ EOL;
 			if ($enter_pressed)
 			{
 				$msg = "enter is pressed, stopping backup...";
-				Log::log_step ( $msg, 'controller_backup' );
-				
-				$msg = 'finally, flush data into hive';
-				Log::log_step ( $msg );
-				Util::flushToHive ();
+				Log::log_step ( $msg, 'enter_pressed' );
+				break;
+			}
+			
+			if($ID>=$ID_END)
+			{
+				$msg = "ID:{$ID} >= ID_END:{$ID_END}, complete";
+				Log::log_step ( $msg, 'complete' );
 			}
 			
 			$mem_sz = memory_get_usage ();
 			$mem_sz_pk = memory_get_peak_usage ();
-			$msg = "ID:{$ID},ID_BATCH:{$CONFIG_ARR['ID_BATCH']}, mem_sz:{$mem_sz}, mem_sz_pk:{$mem_sz_pk}";
+			$BATCH=empty($TABLE_BATCH)?1000:$TABLE_BATCH;
+			$msg = "ID:{$ID}, BATCH:{$BATCH}, mem_sz:{$mem_sz}, mem_sz_pk:{$mem_sz_pk}";
 			Log::log_step ( $msg );
 			
-			$ID2 = $ID + $CONFIG_ARR ['ID_BATCH'];
-			if ($ID2 > $ID_END)
-				$ID2 = $ID_END + 1;
-			if ($ID > $ID_END)
-			{
-				$msg = "ID:{$ID} > ID_END:{$ID_END}, complete!";
-				Log::log_step ( $msg, 'complete' );
-				
-				$msg = 'finally, flushToHive() for the newest day';
-				Log::log_step ( $msg );
-				Util::flushToHive ();
-				
-				break;
-			}
 			
-			$result = $mysqli->query ( "SELECT * from " . TABLE . " where ID>={$ID} and ID<{$ID2} order by CREATE_TIME" );
-			if (! $result)
+			$sql=null;
+			if(empty($TABLE_AUTO_INCREMENT_COLUMN))
 			{
-				$msg = $mysqli->error;
-				Log::log_step ( $msg, 'mysqli_error' );
-				exit ();
+				$sql = "SELECT * FROM `{$TABLE}` LIMIT {$ID}, {$BATCH}";
 			}
-			$rows = $result->fetch_all ( MYSQLI_ASSOC );
+			else
+			{
+				$bound = $ID + $BATCH;
+				$sql = "SELECT * FROM `{$TABLE}` WHERE `{$TABLE_AUTO_INCREMENT_COLUMN}`>={$ID} AND `{$TABLE_AUTO_INCREMENT_COLUMN}`<{$bound}";
+			}
+			$rs = static::$dbh->query($sql);
+			$rows = $rs->fetchAll(PDO::FETCH_ASSOC);
 			
 			if (count ( $rows > 0 ))
 			{
 				$rows_new = [ ];
-				
-				$create_date_partition = '0000-00-00';
-				
+				//分区
+				$__PARTITIONS = '';
 				foreach ( $rows as $row )
 				{
-					$row_new = $row;
-					
-					$create_date = $row ['CREATE_TIME'];
-					$create_date_partition_tmp = substr ( $create_date, 0, 7 ); // 只取月份
-					if ($create_date_partition === '0000-00-00' && ! empty ( $create_date_partition_tmp ))
+					if(!empty($ROW_CALLBACK_PARTITION))
 					{
-						$create_date_partition = $create_date_partition_tmp;
+						$__PARTITIONS='';
+						$idx=0;
+						foreach ($ROW_CALLBACK_PARTITION as $partition_name => $callback)
+						{
+
+							if($idx!==0)
+							{
+								$__PARTITIONS .= ",";
+							}
+							$idx++;
+							if($callback instanceof \Closure)
+							{
+								$__PARTITIONS = "{$partition_name}=" . $callback($row);
+							}else
+							{
+								$__PARTITIONS = "{$partition_name}=" . $callback;
+							}
+						}
 					}
 					
-					if (! empty ( $create_date_partition_tmp ) && $create_date_partition != $create_date_partition_tmp) // 跳月份了
+					//处理行使之和hive格式一致
+					if(!empty($ROW_CALLBACK_CHANGE))
 					{
-						Log::log_step ( "jump_date:{$create_date_partition_tmp}" );
-						Util::exportToText ( $rows_new, $create_date_partition );
-						$rows_new = [ ];
-						$create_date_partition = $create_date_partition_tmp;
+						$row=$ROW_CALLBACK_CHANGE($row);
 					}
-					$rows_new [] = $row_new;
+					
+					if(!empty($__PARTITIONS))
+					{
+						$row['__PARTITIONS']=$__PARTITIONS;
+					}
+					
+					$same_as_hive = static::check_row($row);
+					if(!$same_as_hive)
+					{
+						$msg = "check_row failed, row format is different from hive table, exit 1, row:" . var_export($row, true);
+						Log::log_step ( $msg, 'check_row', true );
+						exit(1);
+					}
+					
+					$rows_new[]=$row;
 				}
-				Util::exportToText ( $rows_new, $create_date_partition );
-				$rows_new = [ ];
-				// 处理完毕，记录ID
-				$msg = "exportToText_id:id>={$ID} and id<{$ID2}";
-				Log::log_step ( $msg, 'exportToText_id' );
-				
-				// Util::flushToHive ( $create_date_partition ); // 把$create_date_partition日期之前的都导入hive，这样就尽可能保证所有日期的数据只导入一次
+				static::exportToText ( $rows_new);
 			}
 			
-			$ID += $CONFIG_ARR ['ID_BATCH'];
+			$ID += $BATCH;
 			$rs = null;
 			$rows = null;
+		}
+		}catch(\Exception $e)
+		{
+			$msg = "PDO Exception:" . $e->getMessage();
+			Log::log_step ( $msg, 'pdo', true );
+			exit(1);
+		}finally 
+		{
+			static::flushToHive();
 		}
 	}
 	static public function run()
@@ -599,8 +625,7 @@ EOL;
 		global $argv;
 		$supported_arguments = [ 
 				'create',
-				'backup',
-				'delete' 
+				'backup'
 		];
 		$arg = empty ( $argv [1] ) ? 'empty' : $argv [1];
 		if (! in_array ( $arg,  $supported_arguments))

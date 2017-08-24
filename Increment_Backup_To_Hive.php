@@ -319,44 +319,46 @@ EOL;
 		global $HIVE_FORMAT;
 		global $HIVE_PARTITION;
 		
-		// check if hive table exists
-
-		$o = null;
-		$r = null;
-		$exec_str = "hive -e 'CREATE DATABASE IF NOT EXISTS `{$HIVE_DB}`; USE `{$HIVE_DB}`; create table `{$HIVE_TABLE}`(`test` string); drop table `{$HIVE_TABLE}`' 2>&1";
-		exec ( $exec_str, $o, $r );
-		if ($r !== 0)
+		$msg = "create hive table:{$HIVE_TABLE}, this will drop old hive table:{$HIVE_TABLE} and  delete all old {$TABLE}'s cache & log files.\ntype (Y/y) for yes, others for no.";
+		Log::log_step($msg, 'controller_create');
+		$type = fgets ( STDIN );
+		if (substr($type, 0, 1) === 'Y' || substr($type, 0, 1) === 'y')
 		{
-			$o_text = implode ( "\n", $o );
-			if (stripos ( $o_text, 'already exists' ) !== false)
+			// delete cache&log
+			$hive_table_log = self::$log_dir . "{$TABLE}-*";
+			$hive_table_log_files = glob ( $hive_table_log );
+			$hive_table_cache = self::$cache_dir . "{$TABLE}-*";
+			$hive_table_cache_files = glob ( $hive_table_cache );
+			$files = array_merge ( $hive_table_log_files, $hive_table_cache_files );
+			$files_text = implode ( "\n", $files );
+			foreach ( $files as $file )
 			{
-				$msg = "HIVE_TABLE:{$HIVE_TABLE} already exists in HIVE_DB:{$HIVE_DB}, you must delete it first, use `php {$argv[0]} delete`, exit 1";
-				Log::log_step ( $msg, 'controller_create', true );
-				$msg = "exec_str:{$exec_str}, exec output:{$o_text}";
-				Log::log_step ( $msg, 'controller_create', true );
-				exit ( 1 );
-			} else
+				@unlink ( $file );
+			}
+			$msg="cache & log files deleted:{$files_text}";
+			Log::log_step($msg, 'controller_create' );
+			
+			// DROP hive table
+			$o = null;
+			$r = null;
+			$exec_str = "hive -e 'USE `{$HIVE_DB}`; DROP TABLE IF EXISTS `{$HIVE_TABLE}`; DROP TABLE IF EXISTS `{$HIVE_TABLE}__tmp`' 2>&1";
+			exec ( $exec_str, $o, $r );
+			if ($r !== 0)
 			{
+				$o_text = implode ( "\n", $o );
 				$msg = "unknow error, exit 1, exec_str:{$exec_str}, exec output:{$o_text}";
-				Log::log_step ( $msg, 'controller_create', true );
+				Log::log_step ( $msg, 'controller_delete', true );
 				exit ( 1 );
 			}
-		}
 
-		// check if hive table log & cache exists
-		$hive_table_log = self::$log_dir . "{$TABLE}-*";
-		$hive_table_log_files = glob ( $hive_table_log );
-		$hive_table_cache = self::$cache_dir . "{$TABLE}-*";
-		$hive_table_cache_files = glob ( $hive_table_cache );
-		$files = array_merge ( $hive_table_log_files, $hive_table_cache_files );
-		if (! empty ( $files ))
+			$msg = "hive table:{$HIVE_TABLE} dropped...";
+			Log::log_step ( $msg, 'controller_create');
+
+		} else
 		{
-			$msg = "TABLE:{$TABLE}'s log & cache files exist, you must delete them first, use `php {$argv[0]} delete`, exit 1";
-			Log::log_step ( $msg, 'controller_create', true );
-			$files_text = implode ( "\n", $files );
-			$msg = "log & cache files:{$files_text}";
-			Log::log_step ( $msg, 'controller_create', true );
-			exit ( 1 );
+			$msg = "typed:{$type} for no, exit..";
+			Log::log_step ( $msg );
+			exit ( 0 );
 		}
 
 		// prepare hive table schema file
@@ -590,53 +592,6 @@ EOL;
 			$rows = null;
 		}
 	}
-	static protected function controller_delete()
-	{
-		global $TABLE;
-		global $HIVE_DB;
-		global $HIVE_TABLE;
-		
-		// delete cache&log
-		$hive_table_log = self::$log_dir . "{$TABLE}-*";
-		$hive_table_log_files = glob ( $hive_table_log );
-		$hive_table_cache = self::$cache_dir . "{$TABLE}-*";
-		$hive_table_cache_files = glob ( $hive_table_cache );
-		$files = array_merge ( $hive_table_log_files, $hive_table_cache_files );
-		$files_text = implode ( "\n", $files );
-		$msg = "do you want to drop hive table:{$HIVE_TABLE}, and delete all cache & log files?\n{$files_text}\ntype (Y/y) for yes, others for no.";
-		Log::log_step($msg, 'controller_delete');
-		$type = fgets ( STDIN );
-		if (substr($type, 0, 1) === 'Y' || substr($type, 0, 1) === 'y')
-		{
-			// DROP hive table
-			$o = null;
-			$r = null;
-			$exec_str = "hive -e 'USE `{$HIVE_DB}`; DROP TABLE IF EXISTS `{$HIVE_TABLE}`; DROP TABLE IF EXISTS `{$HIVE_TABLE}__tmp`' 2>&1";
-			exec ( $exec_str, $o, $r );
-			if ($r !== 0)
-			{
-				$o_text = implode ( "\n", $o );
-				$msg = "unknow error, exit 1, exec_str:{$exec_str}, exec output:{$o_text}";
-				Log::log_step ( $msg, 'controller_delete', true );
-				exit ( 1 );
-			}
-
-			// unlink files
-			foreach ( $files as $file )
-			{
-				@unlink ( $file );
-			}
-			
-			$msg = "delete done, exit 0...";
-			Log::log_step ( $msg );
-			exit ( 0 );
-		} else
-		{
-			$msg = "typed:{$type} for no, exit..";
-			Log::log_step ( $msg );
-			exit ( 0 );
-		}
-	}
 	static public function run()
 	{
 		static::init ();
@@ -654,7 +609,6 @@ EOL;
 {$arg} is not supported argument:
 create: generate hive table schema and create it
 backup: backup to hive
-delete: drop hive table, delete log, delete cache
 EOL;
 			Log::log_step ( $msg, 'run', true );
 			exit ( 1 );
@@ -666,9 +620,6 @@ EOL;
 		} else if ($arg === $supported_arguments [1])
 		{
 			static::controller_backup ();
-		} else if ($arg === $supported_arguments [2])
-		{
-			static::controller_delete ();
 		} else
 		{
 			$msg = "{$arg} not supported, exit 1";

@@ -1,4 +1,5 @@
 <?php
+//php -d xdebug.remote_autostart=On test_table1.php
 
 //包含初始化类
 include __DIR__ . "/../../Increment_Backup_To_Hive.php";
@@ -7,22 +8,22 @@ include __DIR__ . "/../../Increment_Backup_To_Hive.php";
 $WORK_DIR = __DIR__ ;
 
 //sample数据库中需要备份到hive的表
-$TABLE = "sample_table";
+$TABLE = "test_table1";
 
 /*
  *表中用来进行增量备份的自增INT列，由于会使用`SELECT * FROM `sample_table` WHERE `id`>=M AND `id`<M+1000`这种遍历方式，所以自增INT列必须加上索引
  *如果该表没有自增INT列，设置`$TABLE_AUTO_INCREMENT_COLUMN = null;`即可，此时会使用`SELECT * FROM `sample_table` LIMIT M,1000这种遍历方式，如果记录数太大性能会急剧下降，而且数据只能插入不能删除
  */
-$TABLE_AUTO_INCREMENT_COLUMN = "id";
+$TABLE_AUTO_INCREMENT_ID = "id";
 
 //默认每次从数据源读多少行数据
 $TABLE_BATCH=1000;
 
 //导入hive数据库名，没有则自动创建
-$HIVE_DB = "sample";
+$HIVE_DB = "test_database";
 
 //导入hive表名
-$HIVE_TABLE = "sample_table";
+$HIVE_TABLE = "test_table1";
 
 /*
  *是否创建ORCFILE格式的hive表，对于占用磁盘太大的表使用ORCFILE格式压缩可以节约HDFS磁盘空间，此时设置`$HIVE_ORCFILE = true;`即可；如果本身表体积就不大就没必要使用ORCFILE，直接使用默认的TEXTFILE纯文本格式即可，此时设置`$HIVE_ORCFILE = false`
@@ -79,3 +80,5 @@ $HIVE_PARTITION = null;
  * 
  * */
 $ROW_CALLBACK = null;
+
+Increment_Backup_To_Hive::run();

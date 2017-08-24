@@ -1,5 +1,8 @@
-DROP TABLE IF EXISTS `sample_table`;
-CREATE TABLE `sample_table` (
+CREATE DATABASE IF NOT EXISTS `test_database`;
+USE `test_database`;
+
+DROP TABLE IF EXISTS `test_table1`;
+CREATE TABLE `test_table1` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `created_date` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_date` int(11) DEFAULT NULL,
@@ -9,10 +12,10 @@ CREATE TABLE `sample_table` (
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 
 --
--- 转存表中的数据 `sample_table`
+-- 转存表中的数据 `test_table1`
 --
 
-INSERT INTO `sample_table` (`id`, `created_date`, `updated_date`, `is_delete`, `msg`) VALUES
+INSERT INTO `test_table1` (`id`, `created_date`, `updated_date`, `is_delete`, `msg`) VALUES
 (NULL, NULL, NULL, NULL, 'msg 1'),
 (NULL, NULL, NULL, NULL, 'msg 2'),
 (NULL, NULL, NULL, NULL, 'msg 3'),

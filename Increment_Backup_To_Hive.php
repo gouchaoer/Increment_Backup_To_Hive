@@ -19,7 +19,7 @@ class Increment_Backup_To_Hive
 		self::$config_arr = parse_ini_file ( $config_path );
 		if (empty ( self::$config_arr ))
 		{
-		    $msg = "read config error:{$config_path}, exit 1";
+			$msg = "read config error:{$config_path}, exit 1";
 			Log::log_step ( $msg, 'init', true );
 			exit ( 1 );
 		}
@@ -29,7 +29,7 @@ class Increment_Backup_To_Hive
 		{
 			if (! mkdir ( self::$cache_dir, 0777, true ))
 			{
-				$msg = "failed to create folder:{self::$cache_dir}, exit 1";
+				$msg = "failed to create folder:" . self::$cache_dir;
 				Log::log_step ( $msg, 'init', true );
 				exit ( 1 );
 			}
@@ -40,7 +40,7 @@ class Increment_Backup_To_Hive
 		{
 			if (! mkdir ( self::$log_dir, 0777, true ))
 			{
-				$msg = "failed to create folder:{self::$log_dir}, exit 1";
+				$msg = "failed to create folder:" . self::$log_dir;
 				Log::log_step ( $msg, 'init', true );
 				exit ( 1 );
 			}
@@ -51,7 +51,7 @@ class Increment_Backup_To_Hive
 		if (! empty ( $running_lock_content ))
 		{
 			$pieces = explode ( "|", $running_lock_content );
-			$pid_old = $pieces [1];
+			$pid_old = empty($pieces [1])?-1:$pieces [1];
 			if (file_exists ( "/proc/{$pid_old}" ))
 			{
 				$msg = "running_lock:{$running_lock} exist, running_lock_content:{$running_lock_content}, another program is running, exit 1";
@@ -63,7 +63,9 @@ class Increment_Backup_To_Hive
 				Log::log_step ( $msg, 'init', true );
 			}
 		}
-		
+		$pid=getmypid();
+		$date_formated = date("Y-m-d H:i:s");
+		file_put_contents($running_lock, "{$date_formated}|{$pid}");
 		register_shutdown_function ( function () use ($running_lock)
 		{
 			@unlink ( $running_lock );
@@ -83,87 +85,135 @@ class Increment_Backup_To_Hive
 	}
 	
 	// 检测从数据源读到的行数据是否和hive建表语句一致
-	static protected $hive_cols;
+	protected static $hive_cols;
 	static protected function check_row(Array $row)
 	{
-	    if(empty(static::$hive_cols))
-	    {
-	        $hive_schema_fn = "{self::$cache_dir}{$TABLE}-schema.sql";
-	        $hive_schema = file_get_contents ( $hive_schema_fn );
-	        //extract column names
-	        preg_match("/\((\b*\,?\b*\`?\w\`\b*\w)\)/", $subject);
-	    }
-	    
-	    $ct_0=count(static::$hive_cols);
-	    $ct_1=count($row);
-	    if($ct_0 !== $ct_1 )
-	    {
-	        $msg="row column num:{$ct_0} not match hive table schema column num:{$ct_1}, exit 1, row columns:" . var_export($row, true) . ", hive_cols:" . var_export(static::$hive_cols, true);
-	        Log::log_step($msg, 'check_row', true);
-	        exit(1);
-	    }
-	        $idx=0;
-	        foreach ($row as $k=>$v)
-	        {
-	            if($k !== static::$hive_cols[$idx])
-	            {
-	                $msg="row column:{$k} not match hive table schema column:{static::$hive_cols[$idx]}, exit 1, row columns:" . var_export($row, true) . ", hive_cols:" . var_export(static::$hive_cols, true);
-	                Log::log_step($msg, 'check_row', true);
-	                exit(1);
-	            }
-	            $idx++;
-	        }
+		if (empty ( static::$hive_cols ))
+		{
+			$hive_schema_fn = self::$cache_dir . "/{$TABLE}-schema.sql";
+			$hive_schema = file_get_contents ( $hive_schema_fn );
+			// extract column names
+			preg_match ( "/\((\b*\,?\b*\`?\w\`\b*\w)\)/", $subject );
+		}
+		
+		$ct_0 = count ( static::$hive_cols );
+		$ct_1 = count ( $row );
+		if ($ct_0 !== $ct_1)
+		{
+			$msg = "row column num:{$ct_0} not match hive table schema column num:{$ct_1}, exit 1, row columns:" . var_export ( $row, true ) . ", hive_cols:" . var_export ( static::$hive_cols, true );
+			Log::log_step ( $msg, 'check_row', true );
+			exit ( 1 );
+		}
+		$idx = 0;
+		foreach ( $row as $k => $v )
+		{
+			if ($k !== static::$hive_cols [$idx])
+			{
+				$msg = "row column:{$k} not match hive table schema column:{static::$hive_cols[$idx]}, exit 1, row columns:" . var_export ( $row, true ) . ", hive_cols:" . var_export ( static::$hive_cols, true );
+				Log::log_step ( $msg, 'check_row', true );
+				exit ( 1 );
+			}
+			$idx ++;
+		}
 	}
 	
 	static protected function id_end()
 	{
-	    global $TABLE_AUTO_INCREMENT_COLUMN;
-	    global $TABLE;
+		global $TABLE_AUTO_INCREMENT_ID;
+		global $TABLE;
 		
-	    $ID_END=null;
-	    try 
-	    {
-	       if(empty($TABLE_AUTO_INCREMENT_COLUMN))
-	       {
-	           static::$dbh->query("SELECT COUNT(*) FROM `{$TABLE}`");
-	       }else
-	       {
-	           static::$dbh->query("SELECT ($TABLE_AUTO_INCREMENT_COLUMN) FROM `{$TABLE}`");
-	       }
+		$ID_END = null;
+		try
+		{
+			if (empty ( $TABLE_AUTO_INCREMENT_ID ))
+			{
+				$sql = "SELECT COUNT(*) FROM `{$TABLE}`";
+				
+				$rs = static::$dbh->query($sql);
+				$ID_END = $rs->fetchColumn();
+				
+				$msg = "TABLE_AUTO_INCREMENT_ID is null, ID_END:{$ID_END}";
+				Log::log_step ( $msg, 'id_end' );
+			} else
+			{
+				$sql = "SELECT MAX(`{$TABLE_AUTO_INCREMENT_ID}`) FROM `{$TABLE}`";
+				
+				$rs = static::$dbh->query ( $sql );
+				$ID_END = $rs->fetchColumn ();
+				if ($ID_END === null)
+				{
+					$ID_END = 0;
+					$msg = "empty table:{$TABLE}, set ID_END=0, sql:{$sql}";
+					Log::log_step ( $msg, 'id_end' );
+				}
+				
+				$msg = "ID_START:{$ID_START} is selected, sql:{$sql}";
+				Log::log_step ( $msg, 'id_end' );
+			}
+		} catch ( \Exception $e )
+		{
+			$msg = "failed to query ID_END, exit 1, sql:{$sql}..." . $e->getMessage ();
+			Log::log_step ( $msg, 'id_end', true );
+			exit ( 1 );
+		}
 		
-		$ID_END ++;
-	    }catch(\Exception $e)
-	    {
-	        
-	    }
 		return $ID_END;
 	}
 	
-	
 	static protected function id_start()
 	{
-	    global $TABLE;
-		$exportedId_fn = static::$log_dir . $TABLE . '-exportedId.log';
+		global $TABLE;
+		global $TABLE_AUTO_INCREMENT_ID;
 		
+		$exportedId_fn = static::$log_dir . $TABLE . '-exportedId.log';
 		$file_str = @file_get_contents ( $exportedId_fn );
 		$lines = explode ( "\n", $file_str );
 		$lines_ct = count ( $lines );
-		for($i = $lines_ct - 1; $i >= $lines_ct - 5 && $i >= 0; $i --) // 鍙鍊掓暟5琛�
+		//parse last 5 lines
+		for($i = $lines_ct - 1; $i >= $lines_ct - 5 && $i >= 0; $i --)
 		{
 			$line = $lines [$i];
 			preg_match ( '/.+id<(\d+)/', $line, $matches );
 			if (isset ( $matches [1] ) && $matches [1] > $ID_START)
 			{
 				$ID_START = $matches [1];
+				$msg = "ID_START:{$ID_START} is parsed in line:{$line}";
+				Log::log_step ( $msg, 'id_start' );
+				return $ID_START;
 			}
 		}
-		if ($ID_START !== null)
+
+		//first time backup
+		if(empty($TABLE_AUTO_INCREMENT_ID))
 		{
-			$msg = "ID_START:{$ID_START} is parsed in last line of {$exportToText_id_fp}";
+			$ID_START=0;
+			$msg = 'TABLE_AUTO_INCREMENT_ID is null, set ID_START=0';
 			Log::log_step ( $msg, 'id_start' );
 			return $ID_START;
-		} 
-		return $ID_START;
+		}else
+		{
+			$sql="SELECT MIN(`{$TABLE_AUTO_INCREMENT_ID}`) FROM `{$TABLE}`";
+			try 
+			{
+				$rs = static::$dbh->query($sql);
+				$ID_START = $rs->fetchColumn();
+				if($ID_START===null)
+				{
+					$ID_START=0;
+					$msg="empty table:{$TABLE}, set ID_START=0, sql:{$sql}";
+					Log::log_step($msg, 'id_start');
+				}
+				
+				$msg = "ID_START:{$ID_START} is selected, sql:{$sql}";
+				Log::log_step ( $msg, 'id_start' );
+				return $ID_START;
+			}catch (\Exception $e)
+			{
+				$msg="failed to select min id, sql:{$sql}..." . $e->getMessage();
+				Log::log_step($msg, 'id_start', true);
+				exit(1);
+			}
+		}
 	}
 	static protected function flushToHive($create_date_partition_lt = null)
 	{
@@ -270,6 +320,7 @@ EOL;
 		global $HIVE_PARTITION;
 		
 		// check if hive table exists
+
 		$o = null;
 		$r = null;
 		$exec_str = "hive -e 'CREATE DATABASE IF NOT EXISTS `{$HIVE_DB}`; USE `{$HIVE_DB}`; create table `{$HIVE_TABLE}`(`test` string); drop table `{$HIVE_TABLE}`' 2>&1";
@@ -291,6 +342,7 @@ EOL;
 				exit ( 1 );
 			}
 		}
+
 		// check if hive table log & cache exists
 		$hive_table_log = self::$log_dir . "{$TABLE}-*";
 		$hive_table_log_files = glob ( $hive_table_log );
@@ -299,16 +351,16 @@ EOL;
 		$files = array_merge ( $hive_table_log_files, $hive_table_cache_files );
 		if (! empty ( $files ))
 		{
-			$msg = "TABLE:{$TABLE} log & cache exists, you must delete it first, use `php {$argv[0]} delete`, exit 1";
+			$msg = "TABLE:{$TABLE}'s log & cache files exist, you must delete them first, use `php {$argv[0]} delete`, exit 1";
 			Log::log_step ( $msg, 'controller_create', true );
 			$files_text = implode ( "\n", $files );
 			$msg = "log & cache files:{$files_text}";
 			Log::log_step ( $msg, 'controller_create', true );
 			exit ( 1 );
 		}
-		
+
 		// prepare hive table schema file
-		$msg = "generating hive table schema from data source...";
+		$msg = "generating hive table schema of {$TABLE}...";
 		Log::log_step ( $msg );
 		// https://stackoverflow.com/questions/5428262/php-pdo-get-the-columns-name-of-a-table
 		$sql = "SELECT * from {$TABLE} LIMIT 1";
@@ -350,19 +402,19 @@ EOL;
 			$hive_type = '';
 			if ($pdo_type === PDO::PARAM_BOOL)
 			{
-				$hive_type = 'BOOLEAN';
+				$hive_type = ' BOOLEAN';
 			} else if ($pdo_type === PDO::PARAM_INT)
 			{
-				$hive_type = 'INT';
+				$hive_type = ' INT';
 			} else // NO FLOAT, DECIMAL, TIMESTAMP, BINARY
 			{
-				$hive_type = 'STRING';
+				$hive_type = ' STRING';
 			}
 			
 			$columns_str .= "`{$name}` {$hive_type}";
 		}
 		
-		$hive_format_str = empty ( $HIVE_FORMAT ) ? 'TEXTFILE' :  strtoupper($HIVE_FORMAT);
+		$hive_format_str = empty ( $HIVE_FORMAT ) ? 'TEXTFILE' : strtoupper ( $HIVE_FORMAT );
 		$partition_str = $HIVE_PARTITION === null ? '' : 'PARTITIONED BY (`partition` string)';
 		
 		$hive_schema_template = <<<EOL
@@ -376,9 +428,9 @@ FIELDS TERMINATED BY '\001'
 LINES TERMINATED BY '\n'
 STORED AS {$hive_format_str};
 EOL;
-		if($hive_format_str!=='TEXTFILE')//如果不是TEXTFILE的话就需要创建一个TEXTFILE的tmp表
+		if ($hive_format_str !== 'TEXTFILE') // 如果不是TEXTFILE的话就需要创建一个TEXTFILE的tmp表
 		{
-			$hive_schema_template .=<<<EOL
+			$hive_schema_template .= <<<EOL
 			
 CREATE TABLE {$HIVE_TABLE}__tmp (
 {$columns_str}
@@ -390,15 +442,15 @@ LINES TERMINATED BY '\n'
 STORED AS TEXTFILE;
 EOL;
 		}
-
-		$hive_schema_fn = "{self::$cache_dir}{$TABLE}-schema.sql";
+		
+		$hive_schema_fn = self::$cache_dir . "/{$TABLE}-schema.sql";
 		file_put_contents ( $hive_schema_fn, $hive_schema_template );
 		
 		$msg = "hive table schema generated:{$hive_schema_fn}, change it if you need.\nuse {$hive_schema_fn} to create hive table?\ntype (Y/y) for yes, others for no.";
 		Log::log_step ( $msg );
 		
 		$type = fgets ( STDIN );
-		if ($type === 'Y' || $type === 'y')
+		if (substr($type, 0, 1) === 'Y' || substr($type, 0, 1) === 'y')
 		{
 			$o = null;
 			$r = null;
@@ -409,8 +461,9 @@ EOL;
 				$o_text = implode ( "\n", $o );
 				$msg = "HIVE_TABLE:{$HIVE_TABLE} create failed, exit 1";
 				Log::log_step ( $msg, 'controller_create', true );
-				$msg = "\n\nexec output:\n{$o_text}";
+				$msg = "exec_str:{$exec_str}, exec output:{$o_text}";
 				Log::log_step ( $msg, 'controller_create', true );
+				exit(1);
 			} else
 			{
 				$msg = "HIVE_TABLE:{$HIVE_TABLE} created";
@@ -423,31 +476,27 @@ EOL;
 			exit ( 0 );
 		}
 		
-		// Backup DB_BATCH data to hive
-		$DB_BATCH = empty ( self::$config_arr ['DB_BATCH'] ) ? 1000 : self::$config_arr ['DB_BATCH'];
-		$msg = <<<EOL
-		create done, use `php {$argv[0]} backup` to backup to hive, you can add it to cron.sh for daily backup
-EOL;
+		$msg = "create done, use `php {$argv[0]} backup` to backup to hive, you can add it to cron.sh for daily backup";
 		Log::log_step ( $msg );
 	}
-	
 	static protected function check_enter_pressed()
 	{
-		$read = [STDIN];
-		$write = [];
-		$except = [];
-		$result = stream_select($read, $write, $except, 0);
-		if($result === false) 
-			throw new Exception('stream_select failed');
-		if($result === 0) 
+		$read = [ 
+				STDIN 
+		];
+		$write = [ ];
+		$except = [ ];
+		$result = stream_select ( $read, $write, $except, 0 );
+		if ($result === false)
+			throw new Exception ( 'stream_select failed' );
+		if ($result === 0)
 			return false;
-		$data = stream_get_line($fd, 1);
-		if(strpos($data, "\n")!==false)
+		$data = stream_get_line ( $fd, 1 );
+		if (strpos ( $data, "\n" ) !== false)
 		{
 			return true;
 		}
 	}
-	
 	static protected function controller_backup()
 	{
 		global $TABLE;
@@ -460,9 +509,9 @@ EOL;
 		
 		while ( true )
 		{
-			//if ENTER is pressed, stop backup
-			$enter_pressed = static::check_enter_pressed();
-			if($enter_pressed)
+			// if ENTER is pressed, stop backup
+			$enter_pressed = static::check_enter_pressed ();
+			if ($enter_pressed)
 			{
 				$msg = "enter is pressed, stopping backup...";
 				Log::log_step ( $msg, 'controller_backup' );
@@ -543,6 +592,7 @@ EOL;
 	}
 	static protected function controller_delete()
 	{
+		global $TABLE;
 		global $HIVE_DB;
 		global $HIVE_TABLE;
 		
@@ -553,9 +603,10 @@ EOL;
 		$hive_table_cache_files = glob ( $hive_table_cache );
 		$files = array_merge ( $hive_table_log_files, $hive_table_cache_files );
 		$files_text = implode ( "\n", $files );
-		$msg = "do you want to drop hive table:{$HIVE_TABLE}, and delete all cache & log files:{$files_text}?\ntype (Y/y) for yes, others for no.";
+		$msg = "do you want to drop hive table:{$HIVE_TABLE}, and delete all cache & log files?\n{$files_text}\ntype (Y/y) for yes, others for no.";
+		Log::log_step($msg, 'controller_delete');
 		$type = fgets ( STDIN );
-		if ($type === 'Y' || $type === 'y')
+		if (substr($type, 0, 1) === 'Y' || substr($type, 0, 1) === 'y')
 		{
 			// DROP hive table
 			$o = null;
@@ -569,6 +620,7 @@ EOL;
 				Log::log_step ( $msg, 'controller_delete', true );
 				exit ( 1 );
 			}
+
 			// unlink files
 			foreach ( $files as $file )
 			{
@@ -585,7 +637,7 @@ EOL;
 			exit ( 0 );
 		}
 	}
-	static protected function run()
+	static public function run()
 	{
 		static::init ();
 		
@@ -596,13 +648,13 @@ EOL;
 				'delete' 
 		];
 		$arg = empty ( $argv [1] ) ? 'empty' : $argv [1];
-		if (! in_array ( $argv [1], array_keys ( $supported_arguments ) ))
+		if (! in_array ( $arg,  $supported_arguments))
 		{
 			$msg = <<<EOL
-			{$arg} is not supported argument, exit 1:
-			create: generate hive table schema and create it
-			backup: backup to hive
-			delete: drop hive table, delete log, delete cache
+{$arg} is not supported argument:
+create: generate hive table schema and create it
+backup: backup to hive
+delete: drop hive table, delete log, delete cache
 EOL;
 			Log::log_step ( $msg, 'run', true );
 			exit ( 1 );
@@ -613,10 +665,10 @@ EOL;
 			static::controller_create ();
 		} else if ($arg === $supported_arguments [1])
 		{
-			
+			static::controller_backup ();
 		} else if ($arg === $supported_arguments [2])
 		{
-			
+			static::controller_delete ();
 		} else
 		{
 			$msg = "{$arg} not supported, exit 1";
@@ -645,7 +697,7 @@ class Log
 		{
 			if (! mkdir ( self::$log_dir, 0777, true ))
 			{
-				$msg = "Failed to create folder:{self::$log_dir}, exit 1";
+				$msg = "Failed to create folder:" . self::$log_dir;
 				$fh = fopen ( 'php://stderr', 'a' );
 				fwrite ( $fh, $msg );
 				fclose ( $fh );

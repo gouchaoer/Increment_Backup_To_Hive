@@ -1,17 +1,14 @@
 # Increment_Backup_To_Hive
-A php script to incremental backup rational database(MySQL, PostgreSQL, SQL Server, SQLite, Oracle..) to hive.
+一个增量备份关系数据库(MySQL, PostgreSQL, SQL Server, SQLite, Oracle等)到hive的php脚本工具
 
-[中文文档](README_cn.md)
-## Environment
+## 原理
+由于sqoop可定制性太差，本工具针对增量备份场景，备份某张表时只需要用户填写几个关键参数，就能自动化生成hive表，把脚本加入cron就能实现每天增量备份了。增量备份时，脚本主要根据表的自增主键来查询新增数据，然后把新增的数据按照hive表的格式导出成文本，最后调用hive命令直接把文本导入hive内部。
 
-1. As this script directly call hive shell, so it should run on the host which your hive is installed. You should install php5.4+ or php7.x(php7.x is recommended).
-2. As `PDO` extension is used to query your database, You should make sure your php had `PDO` extension and corresponding databse adaptor. MySQL database need `PDO`+`pdo_mysql`+`mysqlnd`. PostgreSQL database need `PDO`+`pdo_pgsql`+`pgsql`. SQL Server database need `PDO`+`pdo_dblib`. use `php -m` to check installed extensions. 
+## 环境
+
+1. 脚本内部会调用hive命令，所以必须运行在安装hive的Linux主机上。你需要安装PHP5.4以上的版本，推荐安装PHP7.x
+2. 使用`PDO`扩展来查询关系数据库，你需要确认你的PHP安装了`PDO`扩展以及对应数据库适配器。MySQL需要`PDO`+`pdo_mysql`+`mysqlnd`扩展，PostgreSQL需要`PDO`+`pdo_pgsql`+`pgsql`扩展， SQL Server需要`PDO`+`pdo_dblib`等。用`php -m`来查看你是否安装了对应扩展
 
 ## Usage
 
 - `workers_num`, the numbers of the proxy process 
-- `proxy_addr`, the address of the proxy
-- `redis_addr`, the real redis address
-- `white_or_black`, white list or black list strategy, if "white" chosen then redis commands will be invalid except for `white_list_commands`, if "black" chosen the redis commands will be valid except for `black_list_commands`
-- `database_0_and`，due to the default database is 0, here you can allow client to use other databases, of course you should allow `SELECT` command.
-

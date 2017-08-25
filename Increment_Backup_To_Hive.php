@@ -173,7 +173,7 @@ class Increment_Backup_To_Hive
 		for($i = $lines_ct - 1; $i >= $lines_ct - 5 && $i >= 0; $i --)
 		{
 			$line = $lines [$i];
-			preg_match ( '/.+id<(\d+)/', $line, $matches );
+			preg_match ( '/.+ID<(\d+)/', $line, $matches );
 			if (isset ( $matches [1] ) && $matches [1] > $ID_START)
 			{
 				$ID_START = $matches [1];
@@ -215,37 +215,46 @@ class Increment_Backup_To_Hive
 			}
 		}
 	}
-	static protected function flushToHive($create_date_partition_lt = null)
+	static protected function flush_file_to_hive($force=false)
 	{
-		$TABLE = TABLE;
-		$text_files = glob ( __DIR__ . "/data/{$TABLE}_*" );
-		if (! empty ( $create_date_partition_lt )) // 姣旀寚瀹氭棩鏈熷皬鐨勬枃浠舵墠瀵煎叆hive
-		{
-			$text_files_new = [ ];
-			foreach ( $text_files as $k => $v )
-			{
-				$v_base = basename ( $v );
-				$create_date_partition = substr ( $v_base, strlen ( $TABLE . '_' ) );
-				if (strlen ( $create_date_partition ) > 0 && $create_date_partition < $create_date_partition_lt)
-				{
-					$text_files_new [] = $v;
-				}
-			}
-			$text_files = $text_files_new;
-		}
+	    global $EXPORTED_SIZE_MAX;
+	    global $TABLE;
+	    global $HIVE_TABLE;
+	    global $HIVE_DB;
+	    
+	    $exported_size_max= 8 * 1024 * 1024 *1024;//8G
+	    if(empty($EXPORTED_SIZE_MAX))
+	    {
+	        $exported_size_max = $EXPORTED_SIZE_MAX;
+	    }
+	    if($force==false && $exported_size_max > self::$exported_size)
+	    {
+	        return;
+	    }
+		$text_files = glob ( self::$cache_dir . "/{$TABLE}-data-*" );
 		
 		foreach ( $text_files as $fn )
 		{
-			// 瀵煎叆hive鐨則b_hlf_order_text琛�
 			$o = null;
 			$r = null;
 			$v_base = basename ( $fn );
-			$create_date_partition = substr ( $v_base, strlen ( $TABLE . '_' ) );
-			$HIVE_TABLE = HIVE_TABLE;
+			$__PARTITIONS = substr ( $v_base, strlen ( "{$TABLE}-data-" ) );
+			$sql='';
+			if(empty($HIVE_PARTITION))
+			{
 			$sql = <<<EOL
-load data local inpath '{$fn}' into table {$HIVE_TABLE} partition ( create_date_partition='{$create_date_partition}');
+USE {$HIVE_DB};
+LOAD data local inpath '{$fn}' into table {$HIVE_TABLE} partition ( {$__PARTITIONS});
 EOL;
-			file_put_contents ( __DIR__ . "/data/sql_{$TABLE}", $sql );
+			}else 
+			{
+			    $sql = <<<EOL
+USE {$HIVE_DB};
+LOAD data local inpath '{$fn}' into table {$HIVE_TABLE};
+EOL;
+			    
+			}
+			file_put_contents ( __DIR__ . "/data/{$TABLE}-insert.sql", $sql );
 			$exec_str = "hive -f " . __DIR__ . "/data/sql_{$TABLE}";
 			
 			Log::log_step ( "fn:{$fn}", "flushToHive" );
@@ -260,35 +269,40 @@ EOL;
 			unlink ( $fn );
 		}
 	}
-	static protected function exportToText(Array $rows_new)
+	private $exported_size=0;
+	static protected function export_to_file(Array $rows_new)
 	{
 		if (count ( $rows_new ) === 0)
 		{
 			return;
 		}
 
-		$buffer = '';
-		$__PARTITIONS=null;
+		$buffer_arr = [];
+		
 		foreach ( $rows_new as $k => $row )
 		{
-			$__PARTITIONS_STR_tmp='';
+			$__PARTITIONS='';
 			if(!empty($row['__PARTITIONS']))
 			{
-				
+			    $__PARTITIONS =  $row['__PARTITIONS'];
+			}
+			if(!isset($buffer_arr[$__PARTITIONS]))
+			{
+			    $buffer_arr[$__PARTITIONS]='';
 			}
 			$kk_tmp = 0;
 			foreach ( $row as $kk => $vv )
 			{
 				if ($kk_tmp !== 0)
 				{
-					$buffer .= "\001";
+				    $buffer_arr[$__PARTITIONS] .= "\001";
 				} else
 				{
 					$kk_tmp ++;
 				}
 				if (is_null ( $vv ))
 				{
-					$buffer .= "\N"; 
+				    $buffer_arr[$__PARTITIONS] .= "\N"; 
 				} else
 				{
 					$vv_tmp = str_replace ( [ 
@@ -300,17 +314,22 @@ EOL;
 							"\'",
 							"" 
 					], $vv );
-					$$buffertext .= $vv_tmp;
+					$buffer_arr[$__PARTITIONS] .= $vv_tmp;
 				}
 			}
-			$buffer .= "\n";
+			$buffer_arr[$__PARTITIONS] .= "\n";
 		}
-		$text_sz = strlen ( $text );
-		$rows_new_ct = count ( $rows_new );
-		Log::log_step ( "rows_new_ct:{$rows_new_ct}, create_date_partition:{$create_date_partition}, text_sz:{$text_sz}", 'exportToText' );
+		$buffer_arr_sz=0;
+		foreach ($buffer_arr as $__PARTITIONS => $buffer)
+		{
+		    $buffer_arr_sz +=$buffer_sz;
+		    $fn = self::$cache_dir . "/{$TABLE}-data-{$__PARTITIONS}";
+		    file_put_contents ( $fn, $buffer, FILE_APPEND );
+		}
+		self::$exported_size +=$buffer_arr_sz;
+		$rows_new_ct = count($rows_new);
+		Log::log_step ( "rows_new_ct:{$rows_new_ct}, buffer_arr_sz:{$buffer_arr_sz}, exported_size:" . self::$exported_size, 'export_to_file' );
 		
-		$fn = __DIR__ . "/data/" . TABLE . "_{$create_date_partition}";
-		file_put_contents ( $fn, $text, FILE_APPEND );
 	}
 	static protected function controller_create()
 	{
@@ -601,7 +620,10 @@ EOL;
 					
 					$rows_new[]=$row;
 				}
-				static::exportToText ( $rows_new);
+				static::export_to_file( $rows_new);
+				$bound = $ID + $BATCH;
+				$msg="exportedId:ID>={$ID} AND ID<{$bound}";
+				Log::log_step($msg, 'exportedId');
 			}
 			
 			$ID += $BATCH;

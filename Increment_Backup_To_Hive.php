@@ -230,6 +230,8 @@ class Increment_Backup_To_Hive
         global $TABLE;
         global $HIVE_TABLE;
         global $HIVE_DB;
+        global $HIVE_FORMAT;
+        global $ROW_CALLBACK_PARTITIONS;
         
         $EXPORTED_FILE_BUFFER_tmp = 8 * 1024 * 1024 * 1024; //default 8G
         if (!empty($EXPORTED_FILE_BUFFER)) {
@@ -240,34 +242,63 @@ class Increment_Backup_To_Hive
         }
         $text_files = glob(self::$data_dir . "/{$TABLE}-data-*");
         
+        $hive_format_str = empty($HIVE_FORMAT) ? 'TEXTFILE' : strtoupper($HIVE_FORMAT);
+        
         foreach ($text_files as $fn) {
             $o = null;
             $r = null;
             $v_base = basename($fn);
             $__PARTITIONS = substr($v_base, strlen("{$TABLE}-data-"));
-            $sql = '';
-            if (empty($HIVE_PARTITION)) {
-                $sql = <<<EOL
+            $table0=null;
+            if($hive_format_str==='TEXTFILE')
+            {
+                $table0=$HIVE_TABLE;
+            }else
+            {
+                $table0=$HIVE_TABLE . "__tmp";
+            }
+            $partition_str = "";
+            if (!empty($ROW_CALLBACK_PARTITIONS)) 
+            {
+                $partition_str="PARTITION ( {$__PARTITIONS})";
+            }
+            $sql = <<<EOL
 USE {$HIVE_DB};
-LOAD data local inpath '{$fn}' into table {$HIVE_TABLE} partition ( {$__PARTITIONS});
+LOAD DATA LOCAL INPATH '{$fn}' INTO TABLE {$table0} {$partition_str};
 EOL;
-            } else {
-                $sql = <<<EOL
-USE {$HIVE_DB};
-LOAD data local inpath '{$fn}' into table {$HIVE_TABLE};
+
+            $table1=null;
+            if($hive_format_str==='TEXTFILE')
+            {
+                $table1=null;
+            }else
+            {
+                $table1=$HIVE_TABLE;
+            }
+            if(!empty($table1))
+            {
+                $hive_cols_str = '';
+                foreach(self::$hive_cols as $k=>$v)
+                {
+                    if($k!==0)
+                        $hive_format_str .=",";
+                    $hive_format_str.="`{$v}`";
+                }
+                $sql .= <<<EOL
+INSERT INTO TABLE `{$table1}` {$partition_str} SELECT {$hive_format_str} FROM `{$table0}` WHERE {$__PARTITIONS};
+TRUNCATE TABLE `{$table0}`;
 EOL;
             }
             file_put_contents(__DIR__ . "/data/{$TABLE}-insert.sql", $sql);
-            $exec_str = "hive -f " . __DIR__ . "/data/sql_{$TABLE}";
-            
+            $exec_str = "hive -f " . __DIR__ . "/data/{$TABLE}-insert.sql";
             Log::log_step("fn:{$fn}", "file_buf_to_hive");
-            
             exec($exec_str, $o, $r);
             if ($r !== 0) {
                 $msg = var_export($o, true);
                 Log::log_step($msg, 'file_buf_to_hive error', true);
                 exit(1);
             }
+            
             unlink($fn);
         }
     }

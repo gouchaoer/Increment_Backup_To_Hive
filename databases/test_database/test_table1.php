@@ -7,12 +7,12 @@ include __DIR__ . "/../../Increment_Backup_To_Hive.php";
 //设置工作目录
 $WORK_DIR = __DIR__ ;
 
-//sample数据库中需要备份到hive的表
+//要备份的表
 $TABLE = "test_table1";
 
-/*
- *表中用来进行增量备份的自增INT列，由于会使用`SELECT * FROM `sample_table` WHERE `id`>=M AND `id`<M+1000`这种遍历方式，所以自增INT列必须加上索引
- *如果该表没有自增INT列，设置`$TABLE_AUTO_INCREMENT_COLUMN = null;`即可，此时会使用`SELECT * FROM `sample_table` LIMIT M,1000这种遍历方式，如果记录数太大性能会急剧下降，而且数据只能插入不能删除
+/**
+ *表中用来进行增量备份的自增INT列，由于会使用类似`SELECT * FROM `table` WHERE `id`>=M AND `id`<M+1000`这种遍历方式，所以自增INT列必须加上索引
+ *如果该表没有自增INT列，设置`$TABLE_AUTO_INCREMENT_COLUMN = null;`即可，此时会使用`SELECT * FROM `table` LIMIT M,1000这种遍历方式，如果记录数太大性能会急剧下降，而且数据只能插入不能删除
  */
 $TABLE_AUTO_INCREMENT_ID = "id";
 
@@ -25,48 +25,53 @@ $HIVE_DB = "test_database";
 //导入hive表名
 $HIVE_TABLE = "test_table1";
 
-/*
- *是否创建ORCFILE格式的hive表，对于占用磁盘太大的表使用ORCFILE格式压缩可以节约HDFS磁盘空间，此时设置`$HIVE_ORCFILE = true;`即可；如果本身表体积就不大就没必要使用ORCFILE，直接使用默认的TEXTFILE纯文本格式即可，此时设置`$HIVE_ORCFILE = false`
- *使用ORCFILE格式时，脚本在创建了名为`sample_table`的ORCFILE格式的hive表之后会再创建一个名为`sample_table_tmp`的TEXTFILE的临时hive表，从数据源把数据导入了`sample_table_tmp`表之后再转存到`sample_table`表，最后清空`sample_table_tmp`表
+/**
+ *创建hive表的格式，如果本身表体积就不大可以直接使用默认的TEXTFILE纯文本格式，此时设置`$HIVE_FORMAT = null`；对于占用磁盘太大的表使用ORCFILE格式压缩，此时设置`$HIVE_FORMAT = "ORCFILE";`即可；
+ *使用ORCFILE格式时，脚本在创建了名为`table`的ORCFILE格式的hive表之后会再创建一个名为`table__tmp`的TEXTFILE的临时hive表，从数据源把数据导入了`table__tmp`表之后再转存到`table`表，最后清空`table__tmp`表
  */
-$HIVE_FORMAT = "RCFILE";
+$HIVE_FORMAT = "ORCFILE";
 
-
-/*
- *hive表的分区策略有如下2种情况：
- *第一：不要分区，此时设置`$HIVE_PARTITION = null;`即可，此时设置`$HIVE_PARTITION = null;`即可
- *第二：根据表的字段确定分区（hive中分区字段为`partition`不可修改），此时自己设置一个以表的行数据为参数的回调函数即可，比如：
+/**
+ *hive表的分区策略，有如下2种情况：
+ *第一：不要分区，此时设置`$ROW_CALLBACK_PARTITIONS = null;`即可
+ *第二：根据数据源读到的每行字段来确定分区，此时自己设置一个以表的行数据为参数的回调函数的数组即可，数组键为分区名(分区类型只能为STRING)，比如：
  ```
- //假如created_date行代表插入时间，类型为TIMESTAMP，按照天分区
- $HIVE_PARTITION = function(Array $row)
+ //假如created_date字段代表插入时间，类型为TIMESTAMP，按照天分区
+ $ROW_CALLBACK_PARTITIONS = [
+ 'partition_day' => function(Array $row)
  {
 	 $created_date = empty($row['created_date'])?'0000-00-00 00:00:00':$row['created_date'];
 	 $partition = substr($created_date, 0, 10);
 	 return $partition;
  }
+ ];
+  //多分区情况下，假如created_date字段代表插入时间，类型为INT，按照月分区；假如province字段代表省，按照省分区
+ $ROW_CALLBACK_PARTITIONS = [
  
-  //假如created_date行代表插入时间，类型为INT，按照月分区
- $HIVE_PARTITION = function(Array $row)
+ 'partition_month' => function(Array $row)
  {
 	 $created_date = empty($row['created_date'])? 0:$row['created_date'];
 	 $created_date_str = date('Y-m-d H:i:s', $created_date)
 	 $partition = substr($created_date, 0, 7);
 	 return $partition;
+ },
+ 'partition_province' => function(Arrar $row)
+ {
+    $province = empty($row['province'])? "default":$row['province'];
+	return $province;
  }
+ ];
  
-   //表中没有分区字段，现在按照备份时间进行分区
- $HIVE_PARTITION = function(Array $row)
+   //表中没有分区字段，现在按照备份时间进行按天分区
+ $ROW_CALLBACK_PARTITIONS = [
+ 'partition_day' => function(Array $row)
  {
 	 $created_date = time()
 	 $created_date_str = date('Y-m-d H:i:s', $created_date)
 	 $partition = substr($created_date, 0, 7);
 	 return $partition;
  }
- 
- $HIVE_PARTITIONS = [
- 'partition_1'=>function(Array $row){},
- 'partition_2'=>function(Array $row){},
- ]
+ ];
  ```
  */
 $ROW_CALLBACK_PARTITIONS = [
@@ -74,20 +79,29 @@ $ROW_CALLBACK_PARTITIONS = [
     'partition_2'=>function(Array $row){return "1";}
     ];
 
-/*
- * 从数据源读到的行数据不一定和hive中一样（比如你对自动生成的hive表增减了一些字段，此时你需要对每一行的数据进行处理满足hive表的格式），比如这里hive表把`sample_table`表的`created_date`字段删除，然后另外添加一个id_md5字段；
- * 返回的$row的字段顺序必须和hive中一致，如果不一致程序会检测到并且推出
- * $ROW_CALLBACK=function (Array $row)
+/**
+ * 如果从数据源读到的行数据和hive中不一样，比如你对自动生成的hive表增减了一些字段，此时你需要对每一行的数据进行处理满足hive表的格式，返回的数组$row的字段顺序必须和对应的hive表一致，如果不一致程序会检测到错误并退出
+ * 
+```
+//假如数据源表有`id, tel, birthday`这3个字段，你修改了自动生成的hive建表文件，把`tel`字段进行加密，把birthday改成birth_year字段，你的hive字段为`id, tel, birth_year`
+$ROW_CALLBACK_CHANGE=function (Array $row)
  {
- 	unset($row['created_date']);
- 	$row['id_md5']=md5($row['id']);
+    //$row数组为：['id'=>1, 'tel'=>'15888888888', 'birthday'=>'1990-01-01'];
+ 	$row['tel'] = my_encrypt_fun($row['tel']);
+ 	$row['birth_year']= substr($row['birthday'], 0, 4);
+ 	unset($row['birthday'];
+ 	//$row数组为：['id'=>1, 'tel'=>'encrypted content', 'birth_year'=>'1990'];
  	return $row;
  }
- * 
- * 
- * */
+ ``` 
+ */
 $ROW_CALLBACK_CHANGE = null;
 
+//文本文件缓存大小，脚本会把数据缓存到本地文件中，最后再统一导入hive
 $EXPORTED_FILE_BUFFER = 8*1024*1024*1024;//8G
 
-Increment_Backup_To_Hive::run();
+class My_Increment_Backup_To_Hive extends Increment_Backup_To_Hive
+{
+    //你可以重写一些方法满足你的特殊需求
+}
+My_Increment_Backup_To_Hive::run();

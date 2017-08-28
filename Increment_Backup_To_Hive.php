@@ -306,7 +306,6 @@ EOL;
     }
 
     static private $exported_to_file_size = 0;
-
     static protected function export_to_file_buf(Array $rows_new)
     {
         if (count($rows_new) === 0) {

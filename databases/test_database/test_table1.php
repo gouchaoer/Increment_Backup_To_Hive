@@ -90,15 +90,15 @@ $ROW_CALLBACK_CHANGE=function (Array $row)
  	$row['tel'] = my_encrypt_fun($row['tel']);
  	$row['birth_year']= substr($row['birthday'], 0, 4);
  	unset($row['birthday'];
- 	//$row数组为：['id'=>1, 'tel'=>'encrypted content', 'birth_year'=>'1990'];
+ 	//$row数组为：['id'=>1, 'tel'=>'encrypted content', 'birth_year'=>'1990'];和hive表结构一致
  	return $row;
  }
  ``` 
  */
 $ROW_CALLBACK_CHANGE = null;
 
-//文本文件缓存大小，脚本会把数据缓存到本地文件中，最后再统一导入hive
-$EXPORTED_FILE_BUFFER = 8*1024*1024*1024;//8G
+//文本文件缓存大小(Byte)，脚本会把数据缓存到本地文件中，最后再统一导入hive，默认的null为8G
+$EXPORTED_FILE_BUFFER = null;
 
 class My_Increment_Backup_To_Hive extends Increment_Backup_To_Hive
 {

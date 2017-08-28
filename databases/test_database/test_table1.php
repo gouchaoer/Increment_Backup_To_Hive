@@ -71,7 +71,7 @@ $HIVE_FORMAT = "RCFILE";
  */
 $ROW_CALLBACK_PARTITIONS = [
     'partition_1'=>function(Array $row){return "0";},
-    'partition_2'=>function(Array $row){return "1";},
+    'partition_2'=>function(Array $row){return "1";}
     ];
 
 /*

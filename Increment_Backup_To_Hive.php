@@ -86,6 +86,8 @@ class Increment_Backup_To_Hive
     {
         global $TABLE;
         global $ROW_CALLBACK_PARTITIONS;
+        self::$hive_cols =[];
+        self::$hive_partitions=[];
         
         $hive_schema_fn = self::$data_dir . "/{$TABLE}-schema.sql";
         $hive_schema = file_get_contents($hive_schema_fn);
@@ -93,7 +95,7 @@ class Increment_Backup_To_Hive
         preg_match("/CREATE TABLE\W+\w+\W+\(([^\)]+)\)/i", $hive_schema, $matches);
         if(empty($matches[1]))
         {
-            $msg="failed to preg_match hive table schema in :{$hive_schema_fn}";
+            $msg="failed to preg_match hive_cols in :{$hive_schema_fn}";
             Log::log_step($msg, 'parse_hive_table_schema', true);
             exit(1);
         }
@@ -112,12 +114,25 @@ class Increment_Backup_To_Hive
         // extract $hive_partitions
         if(!empty($ROW_CALLBACK_PARTITIONS))
         {
-            preg_match("/CREATE TABLE\W+\w+\W+\(([^\)]+)\)/i", $hive_schema, $matches);
+            preg_match("/PARTITIONED BY\W*\(([^\)]+)\)/i", $hive_schema, $matches);
             if(empty($matches[1]))
             {
-                $msg="failed to preg_match hive table schema in :{$hive_schema_fn}";
+                $msg="failed to preg_match hive_partitions in :{$hive_schema_fn}";
                 Log::log_step($msg, 'parse_hive_table_schema', true);
                 exit(1);
+            }
+            
+            $cols_arr = explode(",", $matches[1]);
+            foreach ($cols_arr as $col)
+            {
+                preg_match("/\W*(\w+)\W+/i", $col, $matches);
+                if(empty($matches[1]))
+                {
+                    $msg="failed to preg_match column name in col:{$col}";
+                    Log::log_step($msg, 'parse_hive_table_schema', true);
+                    exit(1);
+                }
+                self::$hive_partitions[]=$matches[1];
             }
         }
     }
@@ -216,11 +231,11 @@ class Increment_Backup_To_Hive
         global $HIVE_TABLE;
         global $HIVE_DB;
         
-        $EXPORTED_FILE_BUFFER = 8 * 1024 * 1024 * 1024; // 8G
-        if (empty($EXPORTED_FILE_BUFFER)) {
-            $EXPORTED_FILE_BUFFER = $EXPORTED_FILE_BUFFER;
+        $EXPORTED_FILE_BUFFER_tmp = 8 * 1024 * 1024 * 1024; //default 8G
+        if (!empty($EXPORTED_FILE_BUFFER)) {
+            $EXPORTED_FILE_BUFFER_tmp = $EXPORTED_FILE_BUFFER;
         }
-        if ($force == false && $EXPORTED_FILE_BUFFER > self::$exported_size) {
+        if ($force == false && $EXPORTED_FILE_BUFFER_tmp > self::$exported_to_file_buf_size) {
             return;
         }
         $text_files = glob(self::$data_dir . "/{$TABLE}-data-*");
@@ -245,19 +260,19 @@ EOL;
             file_put_contents(__DIR__ . "/data/{$TABLE}-insert.sql", $sql);
             $exec_str = "hive -f " . __DIR__ . "/data/sql_{$TABLE}";
             
-            Log::log_step("fn:{$fn}", "flushToHive");
+            Log::log_step("fn:{$fn}", "file_buf_to_hive");
             
             exec($exec_str, $o, $r);
             if ($r !== 0) {
                 $msg = var_export($o, true);
-                Log::log_step($msg, 'flushToHive_error', true);
-                exit('flushToHive_error');
+                Log::log_step($msg, 'file_buf_to_hive error', true);
+                exit(1);
             }
             unlink($fn);
         }
     }
 
-    private $exported_size = 0;
+    private $exported_to_file_buf_size = 0;
 
     static protected function export_to_file_buf(Array $rows_new)
     {
@@ -305,9 +320,9 @@ EOL;
             $fn = self::$data_dir . "/{$TABLE}-data-{$__PARTITIONS}";
             file_put_contents($fn, $buffer, FILE_APPEND);
         }
-        self::$exported_size += $buffer_arr_sz;
+        self::$exported_to_file_buf_size += $buffer_arr_sz;
         $rows_new_ct = count($rows_new);
-        Log::log_step("rows_new_ct:{$rows_new_ct}, buffer_arr_sz:{$buffer_arr_sz}, exported_size:" . self::$exported_size, 'export_to_file_buf');
+        Log::log_step("rows_new_ct:{$rows_new_ct}, buffer_arr_sz:{$buffer_arr_sz}, exported_size:" . self::$exported_to_file_buf_size, 'export_to_file_buf');
     }
 
     static protected function controller_create()
@@ -317,7 +332,7 @@ EOL;
         global $HIVE_TABLE;
         global $argv;
         global $HIVE_FORMAT;
-        global $HIVE_PARTITION;
+        global $ROW_CALLBACK_PARTITIONS;
         
         $msg = "create hive table:{$HIVE_TABLE}, this will drop old hive table:{$HIVE_TABLE} and  delete all old {$TABLE}'s cache files.\ntype (Y/y) for yes, others for no.";
         Log::log_step($msg, 'controller_create');
@@ -401,14 +416,26 @@ EOL;
         }
         
         $hive_format_str = empty($HIVE_FORMAT) ? 'TEXTFILE' : strtoupper($HIVE_FORMAT);
-        $partition_str = $HIVE_PARTITION === null ? '' : 'PARTITIONED BY (`partition` string)';
+        $partition_str = '';
+        if(!empty($ROW_CALLBACK_PARTITIONS))
+        {
+            $partition_str .= "\nPARTITIONED BY ( ";
+            $idx=0;
+            foreach($ROW_CALLBACK_PARTITIONS as $k=>$v)
+            {
+                if($idx!==0)
+                    $partition_str .=" , ";
+                $idx++;
+                $partition_str .= "{$k} STRING";
+            }
+            $partition_str .= " )";
+        }
         
         $hive_schema_template = <<<EOL
 USE {$HIVE_DB};
 CREATE TABLE {$HIVE_TABLE} (
 {$columns_str}
-)
-{$partition_str}
+){$partition_str}
 ROW FORMAT DELIMITED
 FIELDS TERMINATED BY '\\001'
 LINES TERMINATED BY '\\n'
@@ -422,8 +449,7 @@ EOL;
 			
 CREATE TABLE {$HIVE_TABLE}__tmp (
 {$columns_str}
-)
-{$partition_str}
+){$partition_str}
 ROW FORMAT DELIMITED
 FIELDS TERMINATED BY '\\001'
 LINES TERMINATED BY '\\n'

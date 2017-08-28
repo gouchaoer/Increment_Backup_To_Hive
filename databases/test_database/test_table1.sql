@@ -11,9 +11,6 @@ CREATE TABLE `test_table1` (
   PRIMARY KEY (`id`) USING BTREE
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 
---
--- 转存表中的数据 `test_table1`
---
 
 INSERT INTO `test_table1` (`id`, `created_date`, `updated_date`, `is_delete`, `msg`) VALUES
 (NULL, NULL, NULL, NULL, 'msg 1'),
@@ -25,26 +22,4 @@ INSERT INTO `test_table1` (`id`, `created_date`, `updated_date`, `is_delete`, `m
 (NULL, NULL, NULL, NULL, 'msg 7'),
 (NULL, NULL, NULL, NULL, 'msg 8'),
 (NULL, NULL, NULL, NULL, 'msg 9'),
-(NULL, NULL, NULL, NULL, 'msg 10'),
-(NULL, NULL, NULL, NULL, 'msg 11'),
-(NULL, NULL, NULL, NULL, 'msg 12'),
-(NULL, NULL, NULL, NULL, 'msg 13'),
-(NULL, NULL, NULL, NULL, 'msg 14'),
-(NULL, NULL, NULL, NULL, 'msg 15'),
-(NULL, NULL, NULL, NULL, 'msg 16'),
-(NULL, NULL, NULL, NULL, 'msg 17'),
-(NULL, NULL, NULL, NULL, 'msg 18'),
-(NULL, NULL, NULL, NULL, 'msg 19'),
-(NULL, NULL, NULL, NULL, 'msg 20'),
-(NULL, NULL, NULL, NULL, 'msg 21'),
-(NULL, NULL, NULL, NULL, 'msg 22'),
-(NULL, NULL, NULL, NULL, 'msg 23'),
-(NULL, NULL, NULL, NULL, 'msg 24'),
-(NULL, NULL, NULL, NULL, 'msg 25'),
-(NULL, NULL, NULL, NULL, 'msg 25'),
-(NULL, NULL, NULL, NULL, 'msg 27'),
-(NULL, NULL, NULL, NULL, 'msg 28'),
-(NULL, NULL, NULL, NULL, 'msg 29'),
-(NULL, NULL, NULL, NULL, 'msg 30'),
-(NULL, NULL, NULL, NULL, 'msg 31'),
-(NULL, NULL, NULL, NULL, 'msg 32');
+(NULL, NULL, NULL, NULL, 'msg 10');

@@ -79,7 +79,7 @@ class Increment_Backup_To_Hive
         }
     }
 
-    // 读取建表语句，parse出列字段和partition
+    // 读取建表语句，parse出列字段和分区字段
     protected static $hive_cols;
     protected static $hive_partitions;
     static protected function parse_hive_table_schema()
@@ -92,7 +92,7 @@ class Increment_Backup_To_Hive
         $hive_schema_fn = self::$data_dir . "/{$TABLE}-schema.sql";
         $hive_schema = file_get_contents($hive_schema_fn);
         // extract $hive_cols
-        preg_match("/CREATE TABLE\W+\w+\W+\(([^\)]+)\)/i", $hive_schema, $matches);
+        preg_match("/CREATE TABLE\W+\w+\W*\(([^\)]+)\)/i", $hive_schema, $matches);
         if(empty($matches[1]))
         {
             $msg="failed to preg_match hive_cols in :{$hive_schema_fn}";
@@ -237,7 +237,7 @@ class Increment_Backup_To_Hive
         if (!empty($EXPORTED_FILE_BUFFER)) {
             $EXPORTED_FILE_BUFFER_tmp = $EXPORTED_FILE_BUFFER;
         }
-        if ($force == false && $EXPORTED_FILE_BUFFER_tmp > self::$exported_to_file_buf_size) {
+        if ($force == false && $EXPORTED_FILE_BUFFER_tmp > self::$exported_to_file_size) {
             return;
         }
         $text_files = glob(self::$data_dir . "/{$TABLE}-data-*");
@@ -249,6 +249,12 @@ class Increment_Backup_To_Hive
             $r = null;
             $v_base = basename($fn);
             $__PARTITIONS = substr($v_base, strlen("{$TABLE}-data-"));
+            $partition_str = "";
+            if (!empty($ROW_CALLBACK_PARTITIONS))
+            {
+                $partition_str="PARTITION ( {$__PARTITIONS})";
+            }
+            
             $table0=null;
             if($hive_format_str==='TEXTFILE')
             {
@@ -257,11 +263,7 @@ class Increment_Backup_To_Hive
             {
                 $table0=$HIVE_TABLE . "__tmp";
             }
-            $partition_str = "";
-            if (!empty($ROW_CALLBACK_PARTITIONS)) 
-            {
-                $partition_str="PARTITION ( {$__PARTITIONS})";
-            }
+
             $sql = <<<EOL
 USE {$HIVE_DB};
 LOAD DATA LOCAL INPATH '{$fn}' INTO TABLE {$table0} {$partition_str};
@@ -282,10 +284,10 @@ EOL;
                 {
                     if($k!==0)
                         $hive_format_str .=",";
-                    $hive_format_str.="`{$v}`";
+                    $hive_format_str.=" `{$v}`";
                 }
                 $sql .= <<<EOL
-INSERT INTO TABLE `{$table1}` {$partition_str} SELECT {$hive_format_str} FROM `{$table0}` WHERE {$__PARTITIONS};
+INSERT INTO TABLE `{$table1}` {$partition_str} SELECT {$hive_format_str} FROM `{$table0}`;
 TRUNCATE TABLE `{$table0}`;
 EOL;
             }
@@ -295,24 +297,22 @@ EOL;
             exec($exec_str, $o, $r);
             if ($r !== 0) {
                 $msg = var_export($o, true);
-                Log::log_step($msg, 'file_buf_to_hive error', true);
+                Log::log_step($msg, 'file_buf_to_hive', true);
                 exit(1);
             }
-            
             unlink($fn);
         }
+        self::$exported_to_file_size=0;
     }
 
-    private $exported_to_file_buf_size = 0;
+    static private $exported_to_file_size = 0;
 
     static protected function export_to_file_buf(Array $rows_new)
     {
         if (count($rows_new) === 0) {
             return;
         }
-        
         $buffer_arr = [];
-        
         foreach ($rows_new as $k => $row) {
             $__PARTITIONS = '';
             if (! empty($row['__PARTITIONS'])) {
@@ -351,9 +351,9 @@ EOL;
             $fn = self::$data_dir . "/{$TABLE}-data-{$__PARTITIONS}";
             file_put_contents($fn, $buffer, FILE_APPEND);
         }
-        self::$exported_to_file_buf_size += $buffer_arr_sz;
+        self::$exported_to_file_size += $buffer_arr_sz;
         $rows_new_ct = count($rows_new);
-        Log::log_step("rows_new_ct:{$rows_new_ct}, buffer_arr_sz:{$buffer_arr_sz}, exported_size:" . self::$exported_to_file_buf_size, 'export_to_file_buf');
+        Log::log_step("rows_new_ct:{$rows_new_ct}, buffer_arr_sz:{$buffer_arr_sz}, exported_to_file_size:" . self::$exported_to_file_size, 'export_to_file_buf');
     }
 
     static protected function controller_create()
@@ -388,7 +388,7 @@ EOL;
                 $o_text = implode("\n", $o);
                 $msg = "unknow error, exit 1, exec_str:{$exec_str}, exec output:{$o_text}";
                 Log::log_step($msg, 'controller_delete', true);
-                //exit(1);
+                exit(1);
             }
             
             $msg = "hive table:{$HIVE_TABLE} dropped...";
@@ -455,7 +455,7 @@ EOL;
             foreach($ROW_CALLBACK_PARTITIONS as $k=>$v)
             {
                 if($idx!==0)
-                    $partition_str .=" , ";
+                    $partition_str .=", ";
                 $idx++;
                 $partition_str .= "{$k} STRING";
             }
@@ -475,7 +475,7 @@ STORED AS {$hive_format_str};
 
 EOL;
         if ($hive_format_str !== 'TEXTFILE') // 如果不是TEXTFILE的话就需要创建一个TEXTFILE的tmp表
-{
+        {
             $hive_schema_template .= <<<EOL
 			
 CREATE TABLE {$HIVE_TABLE}__tmp (
@@ -567,6 +567,7 @@ EOL;
                 if ($ID >= $ID_END) {
                     $msg = "ID:{$ID} >= ID_END:{$ID_END}, complete";
                     Log::log_step($msg, 'complete');
+                    break;
                 }
                 
                 $mem_sz = memory_get_usage();
@@ -600,9 +601,9 @@ EOL;
                                 }
                                 $idx ++;
                                 if ($callback instanceof \Closure) {
-                                    $__PARTITIONS = "{$partition_name}=" . $callback($row);
+                                    $__PARTITIONS = "{$partition_name}='" . $callback($row) . "'";
                                 } else {
-                                    $__PARTITIONS = "{$partition_name}=" . $callback;
+                                    $__PARTITIONS = "{$partition_name}='{$callback}'";
                                 }
                             }
                         }
@@ -611,16 +612,25 @@ EOL;
                         if (! empty($ROW_CALLBACK_CHANGE)) {
                             $row = $ROW_CALLBACK_CHANGE($row);
                         }
+                        $row_keys =  array_keys($row);
+                        if(count($row_keys)!==count(self::$hive_cols))
+                        {
+                            $msg="check_row failed, row format is different from hive table, use ROW_CALLBACK_CHANGE to change row, row:" . var_export($row, true) .", hive_cols:" . var_export(self::$hive_cols, true);
+                            Log::log_step($msg, 'check_row', true);
+                            exit(1);
+                        }
+                        foreach($row_keys as $k=>$v)
+                        {
+                            if(self::$hive_cols[$k]!==$v)
+                            {
+                                $msg="check_row failed, row format is different from hive table, use ROW_CALLBACK_CHANGE to change row, row:" . var_export($row, true) .", hive_cols:" . var_export(self::$hive_cols, true);
+                                Log::log_step($msg, 'check_row', true);
+                                exit(1);
+                            }
+                        }
                         
                         if (! empty($__PARTITIONS)) {
                             $row['__PARTITIONS'] = $__PARTITIONS;
-                        }
-                        
-                        $same_as_hive = static::check_row($row);
-                        if (! $same_as_hive) {
-                            $msg = "check_row failed, row format is different from hive table, exit 1, row:" . var_export($row, true);
-                            Log::log_step($msg, 'check_row', true);
-                            exit(1);
                         }
                         
                         $rows_new[] = $row;
@@ -635,6 +645,7 @@ EOL;
                 $ID += $BATCH;
                 $rs = null;
                 $rows = null;
+                static::file_buf_to_hive();
             }
         } catch (\Exception $e) {
             $msg = "PDO Exception:" . $e->getMessage();
@@ -642,7 +653,7 @@ EOL;
             exit(1);
         } finally 
 		{
-            static::flushToHive();
+		    static::file_buf_to_hive(true);
         }
     }
 

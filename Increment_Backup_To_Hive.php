@@ -3,11 +3,11 @@
 class Increment_Backup_To_Hive
 {
 
-    private static $config_arr;
+    protected static $config_arr;
 
-    private static $data_dir;
+    protected static $data_dir;
 
-    private static $log_dir;
+    protected static $log_dir;
 
     protected static $dbh;
 
@@ -22,32 +22,32 @@ class Increment_Backup_To_Hive
         Log::setting($TABLE);
         
         $config_path = $WORK_DIR . "/config.ini";
-        self::$config_arr = parse_ini_file($config_path);
-        if (empty(self::$config_arr)) {
+        static::$config_arr = parse_ini_file($config_path);
+        if (empty(static::$config_arr)) {
             $msg = "read config error:{$config_path}, exit 1";
             Log::log_step($msg, 'init', true);
             exit(1);
         }
         
-        self::$data_dir = $WORK_DIR . "/data/";
-        if (! file_exists(self::$data_dir)) {
-            if (! mkdir(self::$data_dir, 0777, true)) {
-                $msg = "failed to create folder:" . self::$data_dir;
+        static::$data_dir = $WORK_DIR . "/data/";
+        if (! file_exists(static::$data_dir)) {
+            if (! mkdir(static::$data_dir, 0777, true)) {
+                $msg = "failed to create folder:" . static::$data_dir;
                 Log::log_step($msg, 'init', true);
                 exit(1);
             }
         }
         
-        self::$log_dir = $WORK_DIR . "/log/";
-        if (! file_exists(self::$log_dir)) {
-            if (! mkdir(self::$log_dir, 0777, true)) {
-                $msg = "failed to create folder:" . self::$log_dir;
+        static::$log_dir = $WORK_DIR . "/log/";
+        if (! file_exists(static::$log_dir)) {
+            if (! mkdir(static::$log_dir, 0777, true)) {
+                $msg = "failed to create folder:" . static::$log_dir;
                 Log::log_step($msg, 'init', true);
                 exit(1);
             }
         }
         
-        $running_lock = self::$data_dir . "{$TABLE}-running.pid";
+        $running_lock = static::$data_dir . "{$TABLE}-running.pid";
         $running_lock_content = @file_get_contents($running_lock);
         if (! empty($running_lock_content)) {
             $pieces = explode("|", $running_lock_content);
@@ -66,11 +66,11 @@ class Increment_Backup_To_Hive
         file_put_contents($running_lock, "{$date_formated}|{$pid}");
         register_shutdown_function(function () use ($running_lock) {
             @unlink($running_lock);
-            Log::log_step("unlink {$running_lock}", 'init');
+            //Log::log_step("unlink {$running_lock}", 'init');
         });
         
         try {
-            self::$dbh = new PDO(self::$config_arr['DB_DSN'], self::$config_arr['DB_USER'], self::$config_arr['DB_PASSWD']);
+            self::$dbh = new PDO(static::$config_arr['DB_DSN'], static::$config_arr['DB_USER'], static::$config_arr['DB_PASSWD']);
             self::$dbh->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
         } catch (PDOException $e) {
             $msg = "PDO Connection failed, exit 1... " . $e->getMessage();
@@ -89,7 +89,7 @@ class Increment_Backup_To_Hive
         self::$hive_cols =[];
         self::$hive_partitions=[];
         
-        $hive_schema_fn = self::$data_dir . "/{$TABLE}-schema.sql";
+        $hive_schema_fn = static::$data_dir . "/{$TABLE}-schema.sql";
         $hive_schema = file_get_contents($hive_schema_fn);
         // extract $hive_cols
         preg_match("/CREATE TABLE\W+\w+\W*\(([^\)]+)\)/i", $hive_schema, $matches);
@@ -132,7 +132,14 @@ class Increment_Backup_To_Hive
                     Log::log_step($msg, 'parse_hive_table_schema', true);
                     exit(1);
                 }
-                self::$hive_partitions[]=$matches[1];
+                $partition_name = $matches[1];
+                if(!isset($ROW_CALLBACK_PARTITIONS[$partition_name]))
+                {
+                    $msg='$ROW_CALLBACK_PARTITIONS is different from hive table schema, correct it!';
+                    Log::log_step($msg, 'parse_hive_table_schema', true);
+                    exit(1);
+                }
+                self::$hive_partitions[]=$partition_name;
             }
         }
     }
@@ -163,7 +170,7 @@ class Increment_Backup_To_Hive
                     Log::log_step($msg, 'id_end');
                 }
                 
-                $msg = "ID_START:{$ID_START} is selected, sql:{$sql}";
+                $msg = "ID_END:{$ID_END} is selected, sql:{$sql}";
                 Log::log_step($msg, 'id_end');
             }
         } catch (\Exception $e) {
@@ -185,15 +192,19 @@ class Increment_Backup_To_Hive
         $lines = explode("\n", $file_str);
         $lines_ct = count($lines);
         // parse last 5 lines
+        $ID_START=null;
         for ($i = $lines_ct - 1; $i >= $lines_ct - 5 && $i >= 0; $i --) {
             $line = $lines[$i];
             preg_match('/.+ID<(\d+)/', $line, $matches);
             if (isset($matches[1]) && $matches[1] > $ID_START) {
                 $ID_START = $matches[1];
-                $msg = "ID_START:{$ID_START} is parsed in line:{$line}";
-                Log::log_step($msg, 'id_start');
-                return $ID_START;
             }
+        }
+        if($ID_START!==null)
+        {
+            $msg = "ID_START:{$ID_START} is parsed in line:{$line}";
+            Log::log_step($msg, 'id_start');
+            return $ID_START;
         }
         
         // first time backup
@@ -240,7 +251,7 @@ class Increment_Backup_To_Hive
         if ($force == false && $EXPORTED_FILE_BUFFER_tmp > self::$exported_to_file_size) {
             return;
         }
-        $text_files = glob(self::$data_dir . "/{$TABLE}-data-*");
+        $text_files = glob(static::$data_dir . "/{$TABLE}-data-*");
         
         $hive_format_str = empty($HIVE_FORMAT) ? 'TEXTFILE' : strtoupper($HIVE_FORMAT);
         
@@ -291,7 +302,7 @@ INSERT INTO TABLE `{$table1}` {$partition_str} SELECT {$hive_format_str} FROM `{
 TRUNCATE TABLE `{$table0}`;
 EOL;
             }
-            file_put_contents(__DIR__ . "/data/{$TABLE}-insert.sql", $sql);
+            file_put_contents(static::$data_dir . "{$TABLE}-insert.sql", $sql);
             $exec_str = "hive -f " . __DIR__ . "/data/{$TABLE}-insert.sql";
             Log::log_step("fn:{$fn}", "file_buf_to_hive");
             exec($exec_str, $o, $r);
@@ -308,6 +319,7 @@ EOL;
     static private $exported_to_file_size = 0;
     static protected function export_to_file_buf(Array $rows_new)
     {
+        global $TABLE;
         if (count($rows_new) === 0) {
             return;
         }
@@ -320,6 +332,7 @@ EOL;
             if (! isset($buffer_arr[$__PARTITIONS])) {
                 $buffer_arr[$__PARTITIONS] = '';
             }
+            unset($row['__PARTITIONS']);
             $kk_tmp = 0;
             foreach ($row as $kk => $vv) {
                 if ($kk_tmp !== 0) {
@@ -346,8 +359,9 @@ EOL;
         }
         $buffer_arr_sz = 0;
         foreach ($buffer_arr as $__PARTITIONS => $buffer) {
+            $buffer_sz = strlen($buffer);
             $buffer_arr_sz += $buffer_sz;
-            $fn = self::$data_dir . "/{$TABLE}-data-{$__PARTITIONS}";
+            $fn = static::$data_dir . "/{$TABLE}-data-{$__PARTITIONS}";
             file_put_contents($fn, $buffer, FILE_APPEND);
         }
         self::$exported_to_file_size += $buffer_arr_sz;
@@ -369,7 +383,7 @@ EOL;
         $type = fgets(STDIN);
         if (substr($type, 0, 1) === 'Y' || substr($type, 0, 1) === 'y') {
             // delete cache
-            $hive_table_cache = self::$data_dir . "{$TABLE}-*";
+            $hive_table_cache = static::$data_dir . "{$TABLE}-*";
             $hive_table_cache_files = glob($hive_table_cache);
             $files_text = implode("\n", $hive_table_cache_files);
             foreach ($hive_table_cache_files as $file) {
@@ -456,14 +470,14 @@ EOL;
                 if($idx!==0)
                     $partition_str .=", ";
                 $idx++;
-                $partition_str .= "{$k} STRING";
+                $partition_str .= "`{$k}` STRING";
             }
             $partition_str .= " )";
         }
         
         $hive_schema_template = <<<EOL
-USE {$HIVE_DB};
-CREATE TABLE {$HIVE_TABLE} (
+USE `{$HIVE_DB}`;
+CREATE TABLE ``{$HIVE_TABLE}` (
 {$columns_str}
 ){$partition_str}
 ROW FORMAT DELIMITED
@@ -477,7 +491,7 @@ EOL;
         {
             $hive_schema_template .= <<<EOL
 			
-CREATE TABLE {$HIVE_TABLE}__tmp (
+CREATE TABLE `{$HIVE_TABLE}__tmp` (
 {$columns_str}
 ){$partition_str}
 ROW FORMAT DELIMITED
@@ -489,7 +503,7 @@ STORED AS TEXTFILE;
 EOL;
         }
         
-        $hive_schema_fn = self::$data_dir . "/{$TABLE}-schema.sql";
+        $hive_schema_fn = static::$data_dir . "/{$TABLE}-schema.sql";
         file_put_contents($hive_schema_fn, $hive_schema_template);
         
         $msg = "hive table schema generated:{$hive_schema_fn}, change it if you need.\nuse {$hive_schema_fn} to create hive table?\ntype (Y/y) for yes, others for no.";
@@ -535,7 +549,7 @@ EOL;
             throw new Exception('stream_select failed');
         if ($result === 0)
             return false;
-        $data = stream_get_line($fd, 1);
+        $data = stream_get_line(STDIN, 1);
         if (strpos($data, "\n") !== false) {
             return true;
         }
@@ -576,11 +590,16 @@ EOL;
                 Log::log_step($msg);
                 
                 $sql = null;
+                $ID2 = $ID + $BATCH;
+                if($ID2>$ID_END)
+                {
+                    $ID2=$ID_END;
+                }
                 if (empty($TABLE_AUTO_INCREMENT_COLUMN)) {
-                    $sql = "SELECT * FROM `{$TABLE}` LIMIT {$ID}, {$BATCH}";
+                    $limit_n = $ID2 - $ID;
+                    $sql = "SELECT * FROM `{$TABLE}` LIMIT {$ID}, {$limit_n}";
                 } else {
-                    $bound = $ID + $BATCH;
-                    $sql = "SELECT * FROM `{$TABLE}` WHERE `{$TABLE_AUTO_INCREMENT_COLUMN}`>={$ID} AND `{$TABLE_AUTO_INCREMENT_COLUMN}`<{$bound}";
+                    $sql = "SELECT * FROM `{$TABLE}` WHERE `{$TABLE_AUTO_INCREMENT_COLUMN}`>={$ID} AND `{$TABLE_AUTO_INCREMENT_COLUMN}`<{$ID2}";
                 }
                 $rs = static::$dbh->query($sql);
                 $rows = $rs->fetchAll(PDO::FETCH_ASSOC);
@@ -635,8 +654,8 @@ EOL;
                         $rows_new[] = $row;
                     }
                     static::export_to_file_buf($rows_new);
-                    $bound = $ID + $BATCH;
-                    $msg = date('Y-m-d H:i:s') . " ID>={$ID} AND ID<{$bound}";
+
+                    $msg = date('Y-m-d H:i:s') . " ID>={$ID} AND ID<{$ID2}";
                     $exportedId_fn = static::$data_dir . $TABLE . '-exportedId';
                     file_put_contents($exportedId_fn, $msg, FILE_APPEND);
                 }
@@ -708,10 +727,10 @@ class Log
         
         self::$start = time();
         
-        self::$log_dir = $WORK_DIR . "/log/";
-        if (! file_exists(self::$log_dir)) {
-            if (! mkdir(self::$log_dir, 0777, true)) {
-                $msg = "Failed to create folder:" . self::$log_dir;
+        static::$log_dir = $WORK_DIR . "/log/";
+        if (! file_exists(static::$log_dir)) {
+            if (! mkdir(static::$log_dir, 0777, true)) {
+                $msg = "Failed to create folder:" . static::$log_dir;
                 $fh = fopen('php://stderr', 'a');
                 fwrite($fh, $msg);
                 fclose($fh);
@@ -732,9 +751,9 @@ class Log
     {
         $fn = null;
         if (empty($cate)) {
-            $fn = self::$log_dir . self::$app . "-all.log";
+            $fn = static::$log_dir . self::$app . "-all.log";
         } else {
-            $fn = self::$log_dir . self::$app . "-{$cate}.log";
+            $fn = static::$log_dir . self::$app . "-{$cate}.log";
         }
         
         file_put_contents($fn, $str, FILE_APPEND);

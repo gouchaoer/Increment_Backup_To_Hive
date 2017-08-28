@@ -5,7 +5,7 @@ class Increment_Backup_To_Hive
 
     private static $config_arr;
 
-    private static $cache_dir;
+    private static $data_dir;
 
     private static $log_dir;
 
@@ -29,10 +29,10 @@ class Increment_Backup_To_Hive
             exit(1);
         }
         
-        self::$cache_dir = $WORK_DIR . "/cache/";
-        if (! file_exists(self::$cache_dir)) {
-            if (! mkdir(self::$cache_dir, 0777, true)) {
-                $msg = "failed to create folder:" . self::$cache_dir;
+        self::$data_dir = $WORK_DIR . "/data/";
+        if (! file_exists(self::$data_dir)) {
+            if (! mkdir(self::$data_dir, 0777, true)) {
+                $msg = "failed to create folder:" . self::$data_dir;
                 Log::log_step($msg, 'init', true);
                 exit(1);
             }
@@ -47,7 +47,7 @@ class Increment_Backup_To_Hive
             }
         }
         
-        $running_lock = self::$cache_dir . "{$TABLE}-running.pid";
+        $running_lock = self::$data_dir . "{$TABLE}-running.pid";
         $running_lock_content = @file_get_contents($running_lock);
         if (! empty($running_lock_content)) {
             $pieces = explode("|", $running_lock_content);
@@ -81,19 +81,45 @@ class Increment_Backup_To_Hive
 
     // 读取建表语句，parse出列字段和partition
     protected static $hive_cols;
-
+    protected static $hive_partitions;
     static protected function parse_hive_table_schema()
     {
-        $hive_schema_fn = self::$cache_dir . "/{$TABLE}-schema.sql";
+        global $TABLE;
+        global $ROW_CALLBACK_PARTITIONS;
+        
+        $hive_schema_fn = self::$data_dir . "/{$TABLE}-schema.sql";
         $hive_schema = file_get_contents($hive_schema_fn);
-        // extract columns
-        // preg_match ( "/\((\b*\,?\b*\`?\w\`\b*\w)\)/", $subject );
-        preg_match("CREATE TABLE /\((\b*\,?\b*\`?\w\`\b*\w)\)/", $subject);
-        
-        // expode
-        // cols
-        
-        // partition
+        // extract $hive_cols
+        preg_match("/CREATE TABLE\W+\w+\W+\(([^\)]+)\)/i", $hive_schema, $matches);
+        if(empty($matches[1]))
+        {
+            $msg="failed to preg_match hive table schema in :{$hive_schema_fn}";
+            Log::log_step($msg, 'parse_hive_table_schema', true);
+            exit(1);
+        }
+        $cols_arr = explode(",", $matches[1]);
+        foreach ($cols_arr as $col)
+        {
+            preg_match("/\W*(\w+)\W+/i", $col, $matches);
+            if(empty($matches[1]))
+            {
+                $msg="failed to preg_match column name in col:{$col}";
+                Log::log_step($msg, 'parse_hive_table_schema', true);
+                exit(1);
+            }
+            self::$hive_cols[]=$matches[1];
+        }
+        // extract $hive_partitions
+        if(!empty($ROW_CALLBACK_PARTITIONS))
+        {
+            preg_match("/CREATE TABLE\W+\w+\W+\(([^\)]+)\)/i", $hive_schema, $matches);
+            if(empty($matches[1]))
+            {
+                $msg="failed to preg_match hive table schema in :{$hive_schema_fn}";
+                Log::log_step($msg, 'parse_hive_table_schema', true);
+                exit(1);
+            }
+        }
     }
 
     static protected function id_end()
@@ -139,7 +165,7 @@ class Increment_Backup_To_Hive
         global $TABLE;
         global $TABLE_AUTO_INCREMENT_ID;
         
-        $exportedId_fn = static::$cache_dir . $TABLE . '-exportedId';
+        $exportedId_fn = static::$data_dir . $TABLE . '-exportedId';
         $file_str = @file_get_contents($exportedId_fn);
         $lines = explode("\n", $file_str);
         $lines_ct = count($lines);
@@ -183,21 +209,21 @@ class Increment_Backup_To_Hive
         }
     }
 
-    static protected function flush_file_to_hive($force = false)
+    static protected function file_buf_to_hive($force = false)
     {
-        global $EXPORTED_SIZE_MAX;
+        global $EXPORTED_FILE_BUFFER;
         global $TABLE;
         global $HIVE_TABLE;
         global $HIVE_DB;
         
-        $exported_size_max = 8 * 1024 * 1024 * 1024; // 8G
-        if (empty($EXPORTED_SIZE_MAX)) {
-            $exported_size_max = $EXPORTED_SIZE_MAX;
+        $EXPORTED_FILE_BUFFER = 8 * 1024 * 1024 * 1024; // 8G
+        if (empty($EXPORTED_FILE_BUFFER)) {
+            $EXPORTED_FILE_BUFFER = $EXPORTED_FILE_BUFFER;
         }
-        if ($force == false && $exported_size_max > self::$exported_size) {
+        if ($force == false && $EXPORTED_FILE_BUFFER > self::$exported_size) {
             return;
         }
-        $text_files = glob(self::$cache_dir . "/{$TABLE}-data-*");
+        $text_files = glob(self::$data_dir . "/{$TABLE}-data-*");
         
         foreach ($text_files as $fn) {
             $o = null;
@@ -233,7 +259,7 @@ EOL;
 
     private $exported_size = 0;
 
-    static protected function export_to_file(Array $rows_new)
+    static protected function export_to_file_buf(Array $rows_new)
     {
         if (count($rows_new) === 0) {
             return;
@@ -276,12 +302,12 @@ EOL;
         $buffer_arr_sz = 0;
         foreach ($buffer_arr as $__PARTITIONS => $buffer) {
             $buffer_arr_sz += $buffer_sz;
-            $fn = self::$cache_dir . "/{$TABLE}-data-{$__PARTITIONS}";
+            $fn = self::$data_dir . "/{$TABLE}-data-{$__PARTITIONS}";
             file_put_contents($fn, $buffer, FILE_APPEND);
         }
         self::$exported_size += $buffer_arr_sz;
         $rows_new_ct = count($rows_new);
-        Log::log_step("rows_new_ct:{$rows_new_ct}, buffer_arr_sz:{$buffer_arr_sz}, exported_size:" . self::$exported_size, 'export_to_file');
+        Log::log_step("rows_new_ct:{$rows_new_ct}, buffer_arr_sz:{$buffer_arr_sz}, exported_size:" . self::$exported_size, 'export_to_file_buf');
     }
 
     static protected function controller_create()
@@ -298,7 +324,7 @@ EOL;
         $type = fgets(STDIN);
         if (substr($type, 0, 1) === 'Y' || substr($type, 0, 1) === 'y') {
             // delete cache
-            $hive_table_cache = self::$cache_dir . "{$TABLE}-*";
+            $hive_table_cache = self::$data_dir . "{$TABLE}-*";
             $hive_table_cache_files = glob($hive_table_cache);
             $files_text = implode("\n", $hive_table_cache_files);
             foreach ($hive_table_cache_files as $file) {
@@ -407,7 +433,7 @@ STORED AS TEXTFILE;
 EOL;
         }
         
-        $hive_schema_fn = self::$cache_dir . "/{$TABLE}-schema.sql";
+        $hive_schema_fn = self::$data_dir . "/{$TABLE}-schema.sql";
         file_put_contents($hive_schema_fn, $hive_schema_template);
         
         $msg = "hive table schema generated:{$hive_schema_fn}, change it if you need.\nuse {$hive_schema_fn} to create hive table?\ntype (Y/y) for yes, others for no.";
@@ -467,6 +493,7 @@ EOL;
         global $ROW_CALLBACK_CHANGE;
         global $TABLE_BATCH;
         
+        static::parse_hive_table_schema();
         $ID_START = static::id_start();
         $ID_END = static::id_end();
         $ID = $ID_START;
@@ -541,10 +568,10 @@ EOL;
                         
                         $rows_new[] = $row;
                     }
-                    static::export_to_file($rows_new);
+                    static::export_to_file_buf($rows_new);
                     $bound = $ID + $BATCH;
                     $msg = date('Y-m-d H:i:s') . " ID>={$ID} AND ID<{$bound}";
-                    $exportedId_fn = static::$cache_dir . $TABLE . '-exportedId';
+                    $exportedId_fn = static::$data_dir . $TABLE . '-exportedId';
                     file_put_contents($exportedId_fn, $msg, FILE_APPEND);
                 }
                 

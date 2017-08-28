@@ -88,4 +88,6 @@ $ROW_CALLBACK_PARTITIONS = [
  * */
 $ROW_CALLBACK_CHANGE = null;
 
+$EXPORTED_FILE_BUFFER = 8*1024*1024*1024;//8G
+
 Increment_Backup_To_Hive::run();

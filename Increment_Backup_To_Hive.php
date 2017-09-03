@@ -277,7 +277,7 @@ class Increment_Backup_To_Hive
 
             $sql = <<<EOL
 USE {$HIVE_DB};
-LOAD DATA LOCAL INPATH '{$fn}' INTO TABLE {$table0} {$partition_str};
+LOAD DATA LOCAL INPATH '{$fn}' INTO TABLE `{$table0}` {$partition_str};
 EOL;
 
             $table1=null;
@@ -294,11 +294,11 @@ EOL;
                 foreach(self::$hive_cols as $k=>$v)
                 {
                     if($k!==0)
-                        $hive_format_str .=",";
-                    $hive_format_str.=" `{$v}`";
+                        $hive_cols_str .=",";
+                        $hive_cols_str.=" `{$v}`";
                 }
                 $sql .= <<<EOL
-INSERT INTO TABLE `{$table1}` {$partition_str} SELECT {$hive_format_str} FROM `{$table0}`;
+INSERT INTO TABLE `{$table1}` {$partition_str} SELECT {$hive_cols_str} FROM `{$table0}`;
 TRUNCATE TABLE `{$table0}`;
 EOL;
             }
@@ -619,9 +619,9 @@ EOL;
                                 }
                                 $idx ++;
                                 if ($callback instanceof \Closure) {
-                                    $__PARTITIONS = "{$partition_name}='" . $callback($row) . "'";
+                                    $__PARTITIONS .= "{$partition_name}='" . $callback($row) . "'";
                                 } else {
-                                    $__PARTITIONS = "{$partition_name}='{$callback}'";
+                                    $__PARTITIONS .= "{$partition_name}='{$callback}'";
                                 }
                             }
                         }

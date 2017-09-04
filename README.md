@@ -24,7 +24,7 @@
  第一：不要分区，此时设置`$ROW_CALLBACK_PARTITIONS = null;`即可
  第二：根据数据源读到的每行字段来确定分区，此时自己设置一个以表的行数据为参数的回调函数的数组即可，数组键为分区名(分区类型只能为STRING)，比如：
  
-  ```
+```
  (a),假如created_date字段代表插入时间，类型为TIMESTAMP，按照天分区
  $ROW_CALLBACK_PARTITIONS = [
  'partition_day' => function(Array $row)
@@ -62,7 +62,7 @@
 	 return $partition;
  }
  ];
- ```
+```
 
 
 

@@ -305,7 +305,7 @@ TRUNCATE TABLE `{$table0}`;
 EOL;
             }
             file_put_contents(self::$data_dir . "{$TABLE}-insert.sql", $sql);
-            $exec_str = "hive -f " . __DIR__ . "/data/{$TABLE}-insert.sql";
+            $exec_str = "hive -f " . self::$data_dir . "{$TABLE}-insert.sql";
             Log::log_step("fn:{$fn}", "file_buf_to_hive");
             exec($exec_str, $o, $r);
             if ($r !== 0) {
@@ -364,8 +364,8 @@ EOL;
             $buffer_sz = strlen($buffer);
             $buffer_arr_sz += $buffer_sz;
             $fn = self::$data_dir . "/{$TABLE}-data-{$__PARTITIONS}";
-            $fn2 = addslashes($fn);
-            file_put_contents($fn2, $buffer, FILE_APPEND);
+            //$fn2 = addslashes($fn);
+            file_put_contents($fn, $buffer, FILE_APPEND);
         }
         self::$exported_to_file_size += $buffer_arr_sz;
         $rows_new_ct = count($rows_new);
@@ -451,12 +451,12 @@ EOL;
             $pdo_type = $colmuns_pdo_type[$k];
             $hive_type = '';
             if ($pdo_type === PDO::PARAM_BOOL) {
-                $hive_type = ' BOOLEAN';
+                $hive_type = 'BOOLEAN';
             } else if ($pdo_type === PDO::PARAM_INT) {
-                $hive_type = ' INT';
+                $hive_type = 'INT';
             } else // NO FLOAT, DECIMAL, TIMESTAMP, BINARY
             {
-                $hive_type = ' STRING';
+                $hive_type = 'STRING';
             }
             
             $columns_str .= "`{$name}` {$hive_type}";
@@ -624,10 +624,11 @@ EOL;
                                     $__PARTITIONS .= ",";
                                 }
                                 $idx ++;
-                                if ($callback instanceof \Closure) {
-                                    $__PARTITIONS .= "{$partition_name}='" . $callback($row) . "'";
+                                $callback_v = $callback instanceof \Closure ? $callback($row) : $callback;
+                                if ( empty($callback_v) && $callback !== '0' ) {
+                                    $__PARTITIONS .= "{$partition_name}='empty'";//hive partition can't be a empty string
                                 } else {
-                                    $__PARTITIONS .= "{$partition_name}='{$callback}'";
+                                    $__PARTITIONS .= "{$partition_name}='{$callback_v}'";
                                 }
                             }
                         }
@@ -661,7 +662,7 @@ EOL;
                     }
                     static::export_to_file_buf($rows_new);
 
-                    $msg = date('Y-m-d H:i:s') . " ID>={$ID} AND ID<{$ID2}";
+                    $msg = date('Y-m-d H:i:s') . " ID>={$ID} AND ID<{$ID2}\n";
                     $exportedId_fn = static::$data_dir . $TABLE . '-exportedId';
                     file_put_contents($exportedId_fn, $msg, FILE_APPEND);
                 }

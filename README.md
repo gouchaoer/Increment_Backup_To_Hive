@@ -1,3 +1,4 @@
+
 # Increment_Backup_To_Hive
 一个增量备份关系数据库(MySQL, PostgreSQL, SQL Server, SQLite, Oracle等)到hive的php脚本工具
 
@@ -22,8 +23,9 @@
 - $ROW_CALLBACK_PARTITIONS:*hive表的分区策略，有如下2种情况：
  第一：不要分区，此时设置`$ROW_CALLBACK_PARTITIONS = null;`即可
  第二：根据数据源读到的每行字段来确定分区，此时自己设置一个以表的行数据为参数的回调函数的数组即可，数组键为分区名(分区类型只能为STRING)，比如：
+ 
   ```
- //假如created_date字段代表插入时间，类型为TIMESTAMP，按照天分区
+ (a),假如created_date字段代表插入时间，类型为TIMESTAMP，按照天分区
  $ROW_CALLBACK_PARTITIONS = [
  'partition_day' => function(Array $row)
  {
@@ -32,7 +34,8 @@
 	 return $partition;
  }
  ];
-  //多分区情况下，假如created_date字段代表插入时间，类型为INT，按照月分区；假如province字段代表省，按照省分区
+ 
+ (b),多分区情况下，假如created_date字段代表插入时间，类型为INT，按照月分区；假如province字段代表省，按照省分区
  $ROW_CALLBACK_PARTITIONS = [
  
  'partition_month' => function(Array $row)
@@ -49,7 +52,7 @@
  }
  ];
  
-   //表中没有分区字段，现在按照备份时间进行按天分区
+ (c),表中没有分区字段，现在按照备份时间进行按天分区
  $ROW_CALLBACK_PARTITIONS = [
  'partition_day' => function(Array $row)
  {

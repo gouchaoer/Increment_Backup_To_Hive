@@ -378,18 +378,18 @@ EOL;
         global $HIVE_FORMAT;
         global $ROW_CALLBACK_PARTITIONS;
         
-        $msg = "create hive table:{$HIVE_TABLE}, this will drop old hive table:{$HIVE_TABLE} and  delete all old {$TABLE}'s cache files.\ntype (Y/y) for yes, others for no.";
+        $msg = "create hive table:{$HIVE_TABLE}?\nthis will drop old hive table:{$HIVE_TABLE} and  delete all old {$TABLE}'s data files.\ntype (Y/y) for yes, others for no.";
         Log::log_step($msg, 'controller_create');
         $type = fgets(STDIN);
         if (substr($type, 0, 1) === 'Y' || substr($type, 0, 1) === 'y') {
-            // delete cache
+            // delete data files
             $hive_table_cache = static::$data_dir . "{$TABLE}-*";
             $hive_table_cache_files = glob($hive_table_cache);
             $files_text = implode("\n", $hive_table_cache_files);
             foreach ($hive_table_cache_files as $file) {
                 @unlink($file);
             }
-            $msg = "cache files deleted:{$files_text}";
+            $msg = "data files deleted:{$files_text}";
             Log::log_step($msg, 'controller_create');
             
             // DROP hive table
@@ -401,7 +401,7 @@ EOL;
                 $o_text = implode("\n", $o);
                 $msg = "unknow error, exit 1, exec_str:{$exec_str}, exec output:{$o_text}";
                 Log::log_step($msg, 'controller_delete', true);
-                exit(1);
+                //exit(1);
             }
             
             $msg = "hive table:{$HIVE_TABLE} dropped...";
@@ -553,12 +553,15 @@ EOL;
         if (strpos($data, "\n") !== false) {
             return true;
         }
+        //TODO:
+        //https://stackoverflow.com/questions/21464457/why-stream-select-on-stdin-becomes-blocking-when-cmd-exe-loses-focus
+        return false;
     }
 
     static protected function controller_backup()
     {
         global $TABLE;
-        global $TABLE_AUTO_INCREMENT_COLUMN;
+        global $TABLE_AUTO_INCREMENT_ID;
         global $ROW_CALLBACK_PARTITIONS;
         global $ROW_CALLBACK_CHANGE;
         global $TABLE_BATCH;
@@ -595,11 +598,11 @@ EOL;
                 {
                     $ID2=$ID_END;
                 }
-                if (empty($TABLE_AUTO_INCREMENT_COLUMN)) {
+                if (empty($TABLE_AUTO_INCREMENT_ID)) {
                     $limit_n = $ID2 - $ID;
                     $sql = "SELECT * FROM `{$TABLE}` LIMIT {$ID}, {$limit_n}";
                 } else {
-                    $sql = "SELECT * FROM `{$TABLE}` WHERE `{$TABLE_AUTO_INCREMENT_COLUMN}`>={$ID} AND `{$TABLE_AUTO_INCREMENT_COLUMN}`<{$ID2}";
+                    $sql = "SELECT * FROM `{$TABLE}` WHERE `{$TABLE_AUTO_INCREMENT_ID}`>={$ID} AND `{$TABLE_AUTO_INCREMENT_ID}`<{$ID2}";
                 }
                 $rs = static::$dbh->query($sql);
                 $rows = $rs->fetchAll(PDO::FETCH_ASSOC);
@@ -667,7 +670,7 @@ EOL;
             }
         } catch (\Exception $e) {
             $msg = "PDO Exception:" . $e->getMessage();
-            Log::log_step($msg, 'pdo', true);
+            Log::log_step($msg, 'PDO', true);
             exit(1);
         } finally 
 		{
@@ -687,7 +690,8 @@ EOL;
         $arg = empty($argv[1]) ? 'empty' : $argv[1];
         if (! in_array($arg, $supported_arguments)) {
             $msg = <<<EOL
-{$arg} is not supported argument:
+{$arg} is not supported argument。
+        
 create: generate hive table schema and create it
 backup: increment backup to hive
 EOL;

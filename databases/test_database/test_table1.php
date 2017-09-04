@@ -1,13 +1,7 @@
 <?php
 //php -d xdebug.remote_autostart=On test_table1.php
 
-//包含初始化类
-include __DIR__ . "/../../Increment_Backup_To_Hive.php";
-
-//设置工作目录
-$WORK_DIR = __DIR__ ;
-
-//要备份的表
+//要备份的表名
 $TABLE = "test_table1";
 
 /**
@@ -16,7 +10,7 @@ $TABLE = "test_table1";
  */
 $TABLE_AUTO_INCREMENT_ID = "id";
 
-//默认每次从数据源读多少行数据
+//每次从数据源读多少行数据
 $TABLE_BATCH=1000;
 
 //导入hive数据库名，没有则自动创建
@@ -100,8 +94,15 @@ $ROW_CALLBACK_CHANGE = null;
 //文本文件缓存大小(Byte)，脚本会把数据缓存到本地文件中，最后再统一导入hive，默认的null为8G
 $EXPORTED_FILE_BUFFER = null;
 
+//设置工作目录，必须为__DIR__
+$WORK_DIR = __DIR__ ;
+
+//包含初始化类
+include __DIR__ . "/../../Increment_Backup_To_Hive.php";
+
 class My_Increment_Backup_To_Hive extends Increment_Backup_To_Hive
 {
     //你可以重写一些方法满足你的特殊需求
 }
+
 My_Increment_Backup_To_Hive::run();

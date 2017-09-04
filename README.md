@@ -11,7 +11,10 @@
 
 ## 用法
 
-- 下载本repo到安装hive的linux主机上，进入databases目录，可以看到有一个test_database的样例，里面有几张表的备份例子。加入你要备份一个名叫"my_database"数据库中的"my_table1"和"my_table2"的两张表，那么就就新建一个名为"my_database"的文件夹，里面的config.ini为数据库连接配置，my_table1可以之间复制test_database中的文件，现在你需要修改文件中定义的关键参数；这些关键参数的意义如下：
+- 下载本repo到安装hive的linux主机上，进入databases目录，可以看到有一个test_database的样例，里面有几张表的备份例子。假如你要备份一个名叫"my_database"数据库中的"my_table1"表，那么就在databases目录下新建一个名为"my_database"的目录，复制databases/test_database/config.ini过来到`databases/my_database`目录下并且修改PDO数据源参数。然后复制`/databases/test_database/test_table1.php`到`databases/my_database`目录下并且改名为`my_table1.php`，打开文件`my_table1.php`并且按照你的需要修改关键参数，这些关键参数的意义如下：
+
+- $TABLE：要备份的表名
+- $TABLE_AUTO_INCREMENT_ID ：表中用来进行增量备份的自增INT列，由于会使用类似`SELECT * FROM `table` WHERE `id`>=M AND `id`<M+1000`这种遍历方式，所以自增INT列必须加上索引。如果该表没有自增INT列，设置`$TABLE_AUTO_INCREMENT_COLUMN = null;`即可，此时会使用`SELECT * FROM `table` LIMIT M,1000这种遍历方式，如果记录数太大性能
 
 
 

@@ -275,9 +275,11 @@ class Increment_Backup_To_Hive
                 $table0=$HIVE_TABLE . "__tmp";
             }
 
+            $fn2 = addslashes($fn);
             $sql = <<<EOL
-USE {$HIVE_DB};
-LOAD DATA LOCAL INPATH '{$fn}' INTO TABLE `{$table0}` {$partition_str};
+USE `{$HIVE_DB}`;
+LOAD DATA LOCAL INPATH '{$fn2}' INTO TABLE `{$table0}` {$partition_str};
+
 EOL;
 
             $table1=null;
@@ -316,7 +318,7 @@ EOL;
         self::$exported_to_file_size=0;
     }
 
-    static private $exported_to_file_size = 0;
+    static protected $exported_to_file_size = 0;
     static protected function export_to_file_buf(Array $rows_new)
     {
         global $TABLE;
@@ -362,7 +364,8 @@ EOL;
             $buffer_sz = strlen($buffer);
             $buffer_arr_sz += $buffer_sz;
             $fn = static::$data_dir . "/{$TABLE}-data-{$__PARTITIONS}";
-            file_put_contents($fn, $buffer, FILE_APPEND);
+            $fn2 = addslashes($fn);
+            file_put_contents($fn2, $buffer, FILE_APPEND);
         }
         self::$exported_to_file_size += $buffer_arr_sz;
         $rows_new_ct = count($rows_new);
@@ -573,7 +576,7 @@ EOL;
         try {
             while (true) {
                 // if ENTER is pressed, stop backup
-                $enter_pressed = static::check_enter_pressed();
+                //$enter_pressed = static::check_enter_pressed();
                 if ($enter_pressed) {
                     $msg = "enter is pressed, stopping backup...";
                     Log::log_step($msg, 'enter_pressed');

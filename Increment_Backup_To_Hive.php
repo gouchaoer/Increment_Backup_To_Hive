@@ -398,7 +398,7 @@ EOL;
             // DROP hive table
             $o = null;
             $r = null;
-            $exec_str = "hive -e 'USE `{$HIVE_DB}`; DROP TABLE IF EXISTS `{$HIVE_TABLE}`; DROP TABLE IF EXISTS `{$HIVE_TABLE}__tmp`' 2>&1";
+            $exec_str = "hive -e 'CREATE DATABASE IF NOT EXISTS `{$HIVE_DB}`; USE `{$HIVE_DB}`; DROP TABLE IF EXISTS `{$HIVE_TABLE}`; DROP TABLE IF EXISTS `{$HIVE_TABLE}__tmp`'";
             exec($exec_str, $o, $r);
             if ($r !== 0) {
                 $o_text = implode("\n", $o);
@@ -517,7 +517,7 @@ EOL;
         if (substr($type, 0, 1) === 'Y' || substr($type, 0, 1) === 'y') {
             $o = null;
             $r = null;
-            $exec_str = "hive -f {$hive_schema_fn} 2>&1";
+            $exec_str = "hive -f {$hive_schema_fn}";
             exec($exec_str, $o, $r);
             if ($r !== 0) {
                 $o_text = implode("\n", $o);

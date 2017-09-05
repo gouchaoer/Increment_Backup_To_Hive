@@ -12,14 +12,15 @@
 
 ## 用法
 
-- 下载本repo到安装hive和php的linux主机上，进入databases目录，可以看到有一个test_database的样例，里面有1张表的备份例子。假如你要备份一个名叫`my_database`数据库中的`my_table1`表，那么就在databases目录下新建一个名为my_database的目录，复制`databases/test_database/config.ini`过来到`databases/my_database`目录下并且修改PDO数据源的参数。然后复制`/databases/test_database/test_table1.php`到`databases/my_database`目录下并且改名为`my_table1.php`，打开文件`my_table1.php`并且按照你的需要修改参数，这些参数的意义见“参数意义”内容。
+- 下载本repo到安装hive和php的linux主机上，进入databases目录，可以看到有一个test_database的样例，里面有1张MySQL表的备份例子（用户测试时导入`databases/test_database/test_table1.sql`这个建标文件到MySQL中即可）。假如你要备份一个名叫`my_database`数据库中的`my_table1`表，那么就在databases目录下新建一个名为my_database的目录，复制`databases/test_database/config.ini`过来到`databases/my_database`目录下并且修改PDO数据源的参数。然后复制`/databases/test_database/test_table1.php`到`databases/my_database`目录下并且改名为`my_table1.php`，打开文件`my_table1.php`并且按照你的需要修改参数，这些参数的意义见“参数意义”内容。
 - `my_table1.php`参数修改好了以后就执行`php my_table1.php create`，这个操作根据数据源自动生成创建hive表的sql文件，你可以根据需要修改，最后按照提示在hive中建表。一旦执行`php my_table1.php create`成功，那么你就不能再修改`my_table1.php`的参数了。如果你想从新来过才能修改`my_table1.php`的参数，然后执行`php my_table1.php create`，这会删除旧的hive表以及备份有关的数据，然后开始全新的建表。
-- 接下来执行`php my_table1.php backup`就能进行备份了，如果没有错误的话你可以按回车键就能使备份安全停止（最好不要使用`Ctrl+C`的方式来打断备份），然后复制`databases/test_database/cron.sh`到`databases/my_database`目录下，并且修改为`my_table1.php`加入即可。如果你希望每天凌晨1点运行cron.sh，那么在crontab中加入`0 1 * * * /path/to/cron.sh`即可。检查是否出错只需要查看`databases/my_database/cron_error.log`的内容即可，更详细的log在对于的log目录下。
+- 接下来执行`php my_table1.php backup`就能进行备份了，如果没有错误的话你可以按回车键就能使备份安全停止（最好不要使用`Ctrl+C`的方式来打断备份），然后复制`databases/test_database/cron.sh`到`databases/my_database`目录下，并且修改为`my_table1.php`加入即可。如果你希望每天凌晨1点运行cron.sh，那么在crontab中加入`0 1 * * * /path/to/cron.sh`即可。检查是否出错只需要查看`databases/my_database/cron_error.log`的内容即可，更详细的log在对于的`databases/test_database/log`目录下。
 
 
 ## 参数意义
 - $TABLE:要备份的表名
 - $TABLE_AUTO_INCREMENT_ID :表中用来进行增量备份的自增INT列，由于会使用类似`SELECT * FROM `table` WHERE `id`>=M AND `id`<M+1000`这种遍历方式，所以自增INT列必须加上索引。如果该表没有自增INT列，设置`$TABLE_AUTO_INCREMENT_COLUMN = null;`即可，此时会使用`SELECT * FROM `table` LIMIT M,1000`这种遍历方式，如果记录数太大性能会急剧下降，而且数据只能插入不能删除
+
 - $TABLE_BATCH:每次从数据源读多少行数据
 - $HIVE_DB:导入hive数据库名，没有则自动创建
 - $HIVE_TABLE:导入hive表名
@@ -29,11 +30,12 @@
  第二：根据数据源读到的每行字段来确定分区，此时自己设置一个以表的行数据为参数的回调函数的数组即可，数组键为分区名(分区类型只能为STRING)，比如：
  
 ```
- (a),假如created_date字段代表插入时间，类型为TIMESTAMP，按照天分区
+自动生成的hive表的所有字段类型都是STRING，用STRING保存关系数据库的INT,FLOAT,DECIMAL等并没有问题，但是如果是二进制BLOB的话需要用`$ROW_CALLBACK_CHANGE`参数来base64编码 (a),假如created_date字段代表插入时间，类型为TIMESTAMP，按照天分区
  $ROW_CALLBACK_PARTITIONS = [
  'partition_day' => function(Array $row)
  {
-	 $created_date = empty($row['created_date'])?'0000-00-00 00:00:00':$row['created_date'];	 $partition = substr($created_date, 0, 10);
+	 $created_date = empty($row['created_date'])?'0000-00-00 00:00:00':$row['created_date'];	 
+自动生成的hive表的所有字段类型都是STRING，用STRING保存关系数据库的INT,FLOAT,DECIMAL等并没有问题，但是如果是二进制BLOB的话需要用`$ROW_CALLBACK_CHANGE`参数来base64编码	 $partition = substr($created_date, 0, 10);
 	 return $partition;
  }
  ];
@@ -84,5 +86,5 @@ $ROW_CALLBACK_CHANGE=function (Array $row)
 - $WORK_DIR:设置工作目录，必须为__DIR__
 
 ## 注意
-- j
+- 
 

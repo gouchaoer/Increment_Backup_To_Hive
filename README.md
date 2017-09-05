@@ -11,9 +11,9 @@
 
 ## 用法
 
-- 下载本repo到安装hive和php的linux主机上，进入databases目录，可以看到有一个test_database的样例，里面有1张MySQL表的备份例子（用户测试时导入`databases/test_database/test_table1.sql`这个建表文件到MySQL中即可）。假如你要备份一个名叫`my_database`数据库中的`my_table1`表，那么就在databases目录下新建一个名为my_database的目录，复制`databases/test_database/config.ini`过来到`databases/my_database`目录下并且修改PDO数据源的参数。然后复制`/databases/test_database/test_table1.php`到`databases/my_database`目录下并且改名为`my_table1.php`，打开文件`my_table1.php`并且按照你的需要修改参数，这些参数的意义见“参数意义”内容。
-- `my_table1.php`参数修改好了以后就执行`php my_table1.php create`，这个操作根据数据源自动生成创建hive表的sql文件`databases/my_database/data/my_table1-schema.sql`，你可以根据需要修改之。一旦执行`php my_table1.php create`成功完成后，那么你就不能再修改`my_table1.php`的参数了。如果你想从新来过才能修改`my_table1.php`的参数，仍然执行`php my_table1.php create`，这会删除旧的hive表以及`databases/my_database/data`目录下该表有关的数据，然后开始全新的建表。
-- 接下来执行`php my_table1.php backup`就能进行备份了测试了，如果没有错误的话你可以按回车键就能使备份安全停止（最好不要使用`Ctrl+C`的方式来打断备份），为了能每天定时备份你需要复制`databases/test_database/cron.sh`到`databases/my_database`目录下，并且修改`cron.sh`中对应的内容为`my_table1.php`，这样只需要把cron.sh加入系统cron就能每天增量备份了。比如你希望每天凌晨1点运行cron.sh，那么在crontab中加入`0 1 * * * /path/to/cron.sh`即可。要检查cron备份是否出错只需要查看`databases/my_database/cron_error.log`的内容即可，更详细的log在`databases/test_database/log`目录下。
+- 下载本repo到安装hive和php的linux主机上，进入databases目录，可以看到有一个test_database的样例，里面有一个备份MySQL表的例子test_table1.php（用户测试时导入`databases/test_database/test_table1.sql`这个建表文件到MySQL中即可）。假如你要备份一个名叫`my_database`数据库中的`my_table1`表，那么就在databases目录下新建一个名为my_database的目录，复制`databases/test_database/config.ini`过来到`databases/my_database`目录下并且修改PDO数据库连接参数。然后复制`/databases/test_database/test_table1.php`到`databases/my_database`目录下并且改名为`my_table1.php`，打开文件`my_table1.php`并且按照你的需要修改参数，这些参数的意义见“参数意义”内容。
+- `my_table1.php`参数修改好了以后就执行`php my_table1.php create`，这个操作根据数据源自动生成创建hive表的sql文件`databases/my_database/data/my_table1-schema.sql`，你可以根据需要修改之。一旦执行`php my_table1.php create`完成后，那么你就不能再修改`my_table1.php`的参数了。如果你想从新来过才能修改`my_table1.php`的参数，仍然执行`php my_table1.php create`，这会删除旧的hive表以及`databases/my_database/data`目录下该表有关的数据，然后开始全新的建表。
+- 接下来执行`php my_table1.php backup`就能进行备份了测试了，如果没有错误的话你可以按回车键就能使备份安全停止，程序需要花一段时间才能退出（最好不要使用`Ctrl+C`的方式来打断备份），为了能每天定时备份你需要复制`databases/test_database/cron.sh`到`databases/my_database`目录下，并且修改`cron.sh`中对应的内容为`my_table1.php`，这样只需要把cron.sh加入系统cron就能每天增量备份了。比如你希望每天凌晨1点运行cron.sh，那么在crontab中加入`0 1 * * * /bin/bash /path/to/cron.sh`即可。要检查cron备份是否出错只需要查看`databases/my_database/cron_error.log`的内容即可，更详细的log在`databases/test_database/log`目录下。
 
 
 ## 参数意义
@@ -23,19 +23,19 @@
 
 - $TABLE_BATCH:每次从数据源读多少行数据
 - $HIVE_DB:导入hive数据库名，没有则自动创建
-- $HIVE_TABLE:导入hive表名
+- $HIVE_TABLE:要创建的hive表名
 - $HIVE_FORMAT:创建hive表的格式，如果本身表体积就不大可以直接使用默认的TEXTFILE纯文本格式，此时设置`$HIVE_FORMAT = null`；对于占用磁盘太大的表使用RCFILE格式压缩，此时设置`$HIVE_FORMAT = "RCFILE";`即可；使用RCFILE格式时，脚本在创建了名为`table`的RCFILE格式的hive表之后会再创建一个名为`table__tmp`的TEXTFILE的临时hive表，从数据源把数据导入了`table__tmp`表之后再转存到`table`表，最后清空`table__tmp`表
 - $ROW_CALLBACK_PARTITIONS:hive表的分区策略，有2种情况。
  第一：不要分区，此时设置`$ROW_CALLBACK_PARTITIONS = null;`即可
  第二：根据数据源读到的每行字段来确定分区，此时自己设置一个以表的行数据为参数的回调函数的数组即可，数组键为分区名(分区类型只能为STRING)，比如：
  
 ```
-自动生成的hive表的所有字段类型都是STRING，用STRING保存关系数据库的INT,FLOAT,DECIMAL等并没有问题，但是如果是二进制BLOB的话需要用`$ROW_CALLBACK_CHANGE`参数来base64编码 (a),假如created_date字段代表插入时间，类型为TIMESTAMP，按照天分区
+ (a),假如created_date字段代表插入时间，类型为TIMESTAMP，按照天分区
  $ROW_CALLBACK_PARTITIONS = [
  'partition_day' => function(Array $row)
  {
 	 $created_date = empty($row['created_date'])?'0000-00-00 00:00:00':$row['created_date'];	 
-自动生成的hive表的所有字段类型都是STRING，用STRING保存关系数据库的INT,FLOAT,DECIMAL等并没有问题，但是如果是二进制BLOB的话需要用`$ROW_CALLBACK_CHANGE`参数来base64编码	 $partition = substr($created_date, 0, 10);
+	 $partition = substr($created_date, 0, 10);
 	 return $partition;
  }
  ];

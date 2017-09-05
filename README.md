@@ -1,4 +1,3 @@
--
 # Increment_Backup_To_Hive
 一个增量备份关系数据库(MySQL, PostgreSQL, SQL Server, SQLite, Oracle等)到hive的php脚本工具
 

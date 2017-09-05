@@ -144,6 +144,7 @@ class Increment_Backup_To_Hive
         }
     }
 
+    //decide where to stop backup
     static protected function id_end()
     {
         global $TABLE_AUTO_INCREMENT_ID;
@@ -182,6 +183,7 @@ class Increment_Backup_To_Hive
         return $ID_END;
     }
 
+    //decide where to start backup
     static protected function id_start()
     {
         global $TABLE;
@@ -235,6 +237,7 @@ class Increment_Backup_To_Hive
         }
     }
 
+    //把缓存在文件中的数据导入hive
     static protected function file_buf_to_hive($force = false)
     {
         global $EXPORTED_FILE_BUFFER;
@@ -319,6 +322,7 @@ EOL;
     }
 
     static protected $exported_to_file_size = 0;
+    //把处理后的行数据按分区存入本地文件缓存
     static protected function export_to_file_buf(Array $rows_new)
     {
         global $TABLE;
@@ -540,6 +544,7 @@ EOL;
         Log::log_step($msg);
     }
 
+    //检测回车键是否按下
     static protected function check_enter_pressed()
     {
         $read = [
@@ -673,7 +678,7 @@ EOL;
                         rename($exportedId_fn, $old_fn);
                         file_put_contents($exportedId_fn, $msg, FILE_APPEND);
                      }
-                
+                } 
                 $ID += $BATCH;
                 $rs = null;
                 $rows = null;

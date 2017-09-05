@@ -71,10 +71,10 @@
 - $ROW_CALLBACK_CHANGE:如果从数据源读到的行数据和hive中不一样，比如你对自动生成的hive表增减了一些字段，此时你需要对每一行的数据进行处理满足hive表的格式，返回的数组$row的字段顺序必须和对应的hive表一致，如果不一致程序会检测到错误并退出，比如：
 
 ```
-(a),假如数据源表有`id, tel, birthday`这3个字段，你修改了自动生成的hive建表文件，把`tel`字段进行加密，把birthday改成birth_year字段，你的hive字段为`id, tel, birth_year`
+(a),假如数据源表有`id, tel, birthday`这3个字段，你修改了自动生成的hive建表文件，把`tel`字段进行加密，把birthday改成birth_year字段，你的hive字段为`id, tel, birth_year`。
 $ROW_CALLBACK_CHANGE=function (Array $row)
  {
-    //$row数组为：['id'=>1, 'tel'=>'15888888888', 'birthday'=>'1990-01-01'];
+    	//$row数组为：['id'=>1, 'tel'=>'15888888888', 'birthday'=>'1990-01-01'];
  	$row['tel'] = my_encrypt_fun($row['tel']);
  	$row['birth_year']= substr($row['birthday'], 0, 4);
  	unset($row['birthday'];

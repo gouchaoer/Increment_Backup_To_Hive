@@ -423,7 +423,7 @@ EOL;
         $columns_name = [];
         $colmuns_pdo_type = [];
         try {
-            $rs = static::$dbh->query($sql);
+            $rs = self::$dbh->query($sql);
             for ($i = 0; $i < $rs->columnCount(); $i ++) {
                 $col = $rs->getColumnMeta($i);
                 $columns_name[] = $col['name'];
@@ -607,7 +607,7 @@ EOL;
                 } else {
                     $sql = "SELECT * FROM `{$TABLE}` WHERE `{$TABLE_AUTO_INCREMENT_ID}`>={$ID} AND `{$TABLE_AUTO_INCREMENT_ID}`<{$ID2}";
                 }
-                $rs = static::$dbh->query($sql);
+                $rs = self::$dbh->query($sql);
                 $rows = $rs->fetchAll(PDO::FETCH_ASSOC);
                 
                 if (count($rows > 0)) {
@@ -663,9 +663,16 @@ EOL;
                     static::export_to_file_buf($rows_new);
 
                     $msg = date('Y-m-d H:i:s') . " ID>={$ID} AND ID<{$ID2}\n";
-                    $exportedId_fn = static::$data_dir . $TABLE . '-exportedId';
+                    $exportedId_fn = self::$data_dir . $TABLE . '-exportedId';
                     file_put_contents($exportedId_fn, $msg, FILE_APPEND);
-                }
+                    clearstatcache();
+                    if(filesize($exportedId_fn) > Log::LOG_MAX)
+                    {
+                        $old_fn = $exportedId_fn . ".old";
+                        @unlink($old_fn);
+                        rename($exportedId_fn, $old_fn);
+                        file_put_contents($exportedId_fn, $msg, FILE_APPEND);
+                     }
                 
                 $ID += $BATCH;
                 $rs = null;
@@ -735,10 +742,10 @@ class Log
         
         self::$start = time();
         
-        static::$log_dir = $WORK_DIR . "/log/";
-        if (! file_exists(static::$log_dir)) {
-            if (! mkdir(static::$log_dir, 0777, true)) {
-                $msg = "Failed to create folder:" . static::$log_dir;
+        self::$log_dir = $WORK_DIR . "/log/";
+        if (! file_exists(self::$log_dir)) {
+            if (! mkdir(self::$log_dir, 0777, true)) {
+                $msg = "Failed to create folder:" . self::$log_dir;
                 $fh = fopen('php://stderr', 'a');
                 fwrite($fh, $msg);
                 fclose($fh);
@@ -759,9 +766,9 @@ class Log
     {
         $fn = null;
         if (empty($cate)) {
-            $fn = static::$log_dir . self::$app . "-all.log";
+            $fn = self::$log_dir . self::$app . "-all.log";
         } else {
-            $fn = static::$log_dir . self::$app . "-{$cate}.log";
+            $fn = self::$log_dir . self::$app . "-{$cate}.log";
         }
         
         file_put_contents($fn, $str, FILE_APPEND);

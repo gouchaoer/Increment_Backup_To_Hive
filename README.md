@@ -50,7 +50,7 @@
 	 $partition = substr($created_date, 0, 7);
 	 return $partition;
  },
- 'partition_province' => function(Arrar $row)
+ 'partition_province' => function(Array $row)
  {
     $province = empty($row['province'])? "default":$row['province'];
 	return $province;

@@ -16,7 +16,7 @@ $TABLE_BATCH=1000;
 //导入hive数据库名，没有则自动创建
 $HIVE_DB = "test_database";
 
-//导入hive表名
+//要创建的hive表名
 $HIVE_TABLE = "test_table1";
 
 /**
@@ -49,7 +49,7 @@ $HIVE_FORMAT = "RCFILE";
 	 $partition = substr($created_date, 0, 7);
 	 return $partition;
  },
- 'partition_province' => function(Arrar $row)
+ 'partition_province' => function(Array $row)
  {
     $province = empty($row['province'])? "default":$row['province'];
 	return $province;

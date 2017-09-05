@@ -18,6 +18,7 @@
 
 
 ## 参数意义
+
 - $TABLE:要备份的表名
 - $TABLE_AUTO_INCREMENT_ID :表中用来进行增量备份的自增INT列，由于会使用类似`SELECT * FROM `table` WHERE `id`>=M AND `id`<M+1000`这种遍历方式，所以自增INT列必须加上索引。如果该表没有自增INT列，设置`$TABLE_AUTO_INCREMENT_COLUMN = null;`即可，此时会使用`SELECT * FROM `table` LIMIT M,1000`这种遍历方式，如果记录数太大性能会急剧下降，而且数据只能插入不能删除
 
@@ -86,5 +87,4 @@ $ROW_CALLBACK_CHANGE=function (Array $row)
 - $WORK_DIR:设置工作目录，必须为__DIR__
 
 ## 注意
-- 
-
+- 自动生成的hive表的所有字段类型都是STRING，用STRING保存关系数据库的INT,FLOAT,DECIMAL等并没有问题，但是如果是二进制BLOB的话需要用`$ROW_CALLBACK_CHANGE`参数来base64编码

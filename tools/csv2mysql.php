@@ -58,6 +58,7 @@ function progress($incr)
 	static $startTime;
 	static $line_buf_old;
 	static $echoTimePre;
+	$now=time();
 	if($import_file_size===null)
 	{
 		$import_file_size = filesize($import_file);
@@ -69,16 +70,17 @@ function progress($incr)
 		{
 			date_default_timezone_set('Asia/Shanghai');
 		}
-		$startTime=time();
+		$startTime=$now;
 	}
 	$accum_size += $incr;
-	if($echoTimePre>=time()-0)
+	if($echoTimePre>=$now-0)
 	{
 		return;
 	}
+	$echoTimePre=$now;
 	$percent = intval(($accum_size/$import_file_size)*100);
 	$gt = intval(($percent/2));
-	$elapsedTime = time() - $startTime;
+	$elapsedTime = $now - $startTime;
 	$accum_size_h = humanFileSize($accum_size);
 	$import_file_size_h = humanFileSize($import_file_size);
 	$line_buf = implode([

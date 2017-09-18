@@ -150,7 +150,7 @@ fwrite($output, 'PRIMARY KEY (`id`)'."\n".') DEFAULT CHARACTER SET \'utf8mb4\';'
 if (($input = @fopen($import_file, 'r')) != false)
 {
 	$row = 1;
-	while (($fields = fgetcsv($input, 1000, ',')) != false)
+	while (($fields = fgetcsv($input)) != false)
 	{
 		if (sizeof($fields) != sizeof($headers))
 		{

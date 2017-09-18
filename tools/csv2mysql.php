@@ -38,6 +38,17 @@ if(!function_exists('mysql_real_escape_string'))
 | report progress.
 |--------------------------------------------------------------------------
 */
+function  humanFileSize($size,$unit="")
+	{
+		if( (!$unit && $size >= 1<<30) || $unit == "GB")
+			return number_format($size/(1<<30),2)."GB";
+		if( (!$unit && $size >= 1<<20) || $unit == "MB")
+			return number_format($size/(1<<20),2)."MB";
+		if( (!$unit && $size >= 1<<10) || $unit == "KB")
+			return number_format($size/(1<<10),2)."KB";
+		return number_format($size)." bytes";
+	}
+	
 function progress($incr)
 {
 	global $import_file;
@@ -46,6 +57,7 @@ function progress($incr)
 	static $accum_size=0;
 	static $startTime;
 	static $line_buf_old;
+	static $echoTimePre;
 	if($import_file_size===null)
 	{
 		$import_file_size = filesize($import_file);
@@ -60,6 +72,10 @@ function progress($incr)
 		$startTime=time();
 	}
 	$accum_size += $incr;
+	if($echoTimePre>=time()-0)
+	{
+		return;
+	}
 	$percent = intval(($accum_size/$import_file_size)*100);
 	$gt = intval(($percent/2));
 	$elapsedTime = time() - $startTime;

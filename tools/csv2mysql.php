@@ -19,6 +19,8 @@
 $import_file = $argv[1];
 $database = $argv[2];
 $table= $argv[3];
+$iconv=isset($argv[4])?$argv[4]:null;
+
 $export_file = $table . '.sql';
 
 if(!function_exists('mysql_real_escape_string'))
@@ -178,6 +180,10 @@ if (($input = @fopen($import_file, 'r')) != false)
 			foreach ($fields as $field)
 			{
 				$incr+=strlen($field)+1;
+				if(!emtpy($iconv))
+				{
+					$field = iconv($iconv, 'UTF-8', $field);
+				}
 				$sql .= ' ,\''.mysql_real_escape_string($field).'\'';
 			}
 			$sql .= ')';

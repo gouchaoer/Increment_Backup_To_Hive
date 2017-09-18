@@ -5,7 +5,7 @@ Creates an importable MySQL file from a CSV file.
 ## Usage ##
 
 ```
-php csv2mysql.php [input.csv] [mysql_database_name] [mysql_table_name]
+php csv2mysql.php [input.csv] [mysql_database_name] [mysql_table_name] [encoding]
 ```
 csv default format:`http://php.net/manual/en/function.fgetcsv.php`. If your csv format(delimiter, enclosure, escape)is different, change `fgetcsv` parameters in source code.
 

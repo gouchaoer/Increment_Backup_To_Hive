@@ -164,8 +164,10 @@ if (($input = @fopen($import_file, 'r')) != false)
 		{
 			$sql = 'INSERT INTO `'.$database.'`.`'.$table.'` VALUES(null, ';
 
+			$incr = 0;
 			foreach ($fields as $field)
 			{
+				$incr+=strlen($field)+1;
 				$sql .= '\''.mysql_real_escape_string($field).'\', ';
 			}
 			$sql = rtrim($sql, ', ');
@@ -173,15 +175,11 @@ if (($input = @fopen($import_file, 'r')) != false)
 
 			fwrite($output, $sql."\n");
 
-			static $sql_insert_sz = null;
-			if($sql_insert_sz===null)
-			{
-				$sql_insert_sz = strlen("INSERT INTO `{$database}'`.`'{$table}` VALUES(null,");
-			}
-			progress(strlen($sql)-strlen($sql_insert_sz));
+			progress($incr);
 		}
 		$row++;
 	}
+	echo PHP_EOL;
 	fclose($input);
 }
 else

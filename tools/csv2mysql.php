@@ -108,6 +108,10 @@ function progress($incr)
 		$line_buf_old = $line_buf;
 		$buf = str_pad($line_buf_old, $LINE_BUF_SZ, ' ');
 		echo "\r" . $buf;
+		if($incr===true)
+		{
+			echo PHP_EOL;
+		}
 	}
 }
 

@@ -16,8 +16,8 @@
 |--------------------------------------------------------------------------
 */
 
-$import_file = 'bin/'.$argv[1];
-$export_file = 'bin/'.$argv[2];
+$import_file = $argv[1];
+$export_file = $argv[2];
 $database = $argv[3];
 $table = basename($export_file, '.sql');
 

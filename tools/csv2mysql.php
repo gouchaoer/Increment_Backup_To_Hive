@@ -90,30 +90,27 @@ function progress($incr)
 
 if (($input = @fopen($import_file, 'r')) != false)
 {
-    if($fields = fgetcsv($input, 0, ',') != false)
+    $row=1;
+    while (($fields = fgetcsv($input, 0, ',')) != false)
     {
-
+        if ($row == 1)
+        {
             foreach ($fields as $field)
             {
-            	if(empty($field))
-            	{
-            		die('csv header format error!');
-            	}
-                $headers[] = str_ireplace(' ', '_', $field);
+                $headers[] = strtolower(str_ireplace(' ', '_', $field));
             }
-
-    }else
-    {
-    	die('csv file format error!');
+        }
+        else
+        	break;
     }
     fclose($input);
 }
 else
 {
-    die('Unable to open file "'.$import_file.'".'."\n");
+    echo 'Unable to open file "'.$import_file.'".'."\n";
 }
-$msg="csv header fileds: " . implode(', ', $headers) . PHP_EOL;
-echo $msg;
+
+
 /*
 |--------------------------------------------------------------------------
 | Build new importable SQL file.

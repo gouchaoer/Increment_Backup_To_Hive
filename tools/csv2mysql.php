@@ -20,6 +20,19 @@ $import_file = $argv[1];
 $database = $argv[2];
 $table= $argv[3];
 $export_file = $table . '.sql';
+
+if(!function_exists('mysql_real_escape_string'))
+{
+	function mysql_real_escape_string($str)
+	{
+		static $search = array("\\",  "\x00", "\n",  "\r",  "'",  '"', "\x1a");
+    		static $replace = array("\\\\","\\0","\\n", "\\r", "\'", '\"', "\\Z");
+
+    		return str_replace($search, $replace, $str);
+	}
+}
+
+
 /*
  |--------------------------------------------------------------------------
 | report progress.
@@ -77,8 +90,9 @@ function progress($incr)
 
 if (($input = @fopen($import_file, 'r')) != false)
 {
-    $row = 1;
-    while (($fields = fgetcsv($input, 1000, ',')) != false)
+    static $SAMPLE_SUM = 1000;
+    $row=1;
+    while (($fields = fgetcsv($input, 0, ',')) != false)
     {
         if ($row == 1)
         {
@@ -103,7 +117,9 @@ if (($input = @fopen($import_file, 'r')) != false)
                 $field++;
             }
         }
-        $row++;
+    $row++;
+    if($row>$SAMPLE_SUM)
+        break;
     }
     fclose($input);
 }
@@ -125,7 +141,7 @@ fwrite($output, 'CREATE TABLE `'.$database.'`.`'.$table.'` ('."\n");
 fwrite($output, '`id` INT(10) UNSIGNED NOT NULL AUTO_INCREMENT,'."\n");
 foreach ($headers as $key=>$header)
 {
-    fwrite($output, '`'.$header.'` VARCHAR('.$max_field_lengths[$key].') NOT NULL,'."\n");
+    fwrite($output, '`'.$header.'` TEXT,'."\n");
 }
 fwrite($output, 'PRIMARY KEY (`id`)'."\n".') DEFAULT CHARACTER SET \'utf8mb4\';'."\n"."\n");
 if (($input = @fopen($import_file, 'r')) != false)
@@ -134,8 +150,9 @@ if (($input = @fopen($import_file, 'r')) != false)
     while (($fields = fgetcsv($input, 1000, ',')) != false)
     {
         if (sizeof($fields) != sizeof($headers))
-        {
-            echo 'INCORRECT NUMBER OF FIELDS  (search your file for \'\"\' string):';
+        {   $fields_sz = sizeof($fields);
+		$headers_sz = sizeof($headers);
+            echo "ROW:{$row}, fields_sz:{$fields_sz}, headers_sz:{$headers_sz}, ".' NCORRECT NUMBER OF FIELDS  (search your file for \'\"\' string):';
             echo print_r($fields, true);
             die();
         }

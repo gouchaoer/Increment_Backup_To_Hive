@@ -446,6 +446,7 @@ EOL;
         }
         
         $columns_str = '';
+        $index=0;
         foreach ($columns_name as $k => $name) {
             // map pdo_type to hive type
             // PDO has only 3 data types, sett http://php.net/manual/en/pdo.constants.php
@@ -462,9 +463,10 @@ EOL;
             //`__ID`为https://github.com/gouchaoer/Increment_Backup_To_Hive/blob/master/tools/csv2mysql.php为csv文件自动生成自增int主键
             if($name!=='__ID')
             {
-            	if ($k !== 0) {
+            	if ($index !== 0) {
             		$columns_str .= ",\n";
             	}
+            	$index++;
             	$columns_str .= "`{$name}` {$hive_type}";
             }
         }

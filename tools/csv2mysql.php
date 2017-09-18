@@ -182,7 +182,11 @@ if (($input = @fopen($import_file, 'r')) != false)
 				$incr+=strlen($field)+1;
 				if(!emtpy($iconv))
 				{
-					$field = iconv($iconv, 'UTF-8', $field);
+					$tmp = iconv($iconv, 'UTF-8', $field);
+					//http://php.net/manual/en/function.iconv.php
+					//invalid charater 
+					if($tmp!==false)
+						$field=$tmp;
 				}
 				$sql .= ' ,\''.mysql_real_escape_string($field).'\'';
 			}

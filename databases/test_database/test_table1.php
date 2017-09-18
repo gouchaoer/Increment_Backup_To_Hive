@@ -23,7 +23,7 @@ $HIVE_TABLE = "test_table1";
  *创建hive表的格式，如果本身表体积就不大可以直接使用默认的TEXTFILE纯文本格式，此时设置`$HIVE_FORMAT = null`；对于占用磁盘太大的表使用RCFILE格式压缩，此时设置`$HIVE_FORMAT = "RCFILE";`即可；
  *使用RCFILE格式时，脚本在创建了名为`table`的RCFILE格式的hive表之后会再创建一个名为`table__tmp`的TEXTFILE的临时hive表，从数据源把数据导入了`table__tmp`表之后再转存到`table`表，最后清空`table__tmp`表
  */
-$HIVE_FORMAT = "RCFILE";
+$HIVE_FORMAT = null;
 
 /**
  *hive表的分区策略，有如下2种情况：

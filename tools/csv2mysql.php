@@ -57,7 +57,7 @@ function progress($incr)
 	static $accum_size=0;
 	static $startTime;
 	static $line_buf_old;
-	static $echoTimePre;
+	static $echoTimePre=0;
 	$now=time();
 	if($import_file_size===null)
 	{
@@ -72,8 +72,15 @@ function progress($incr)
 		}
 		$startTime=$now;
 	}
-	$accum_size += $incr;
-	if($echoTimePre>=$now-0)
+	if($incr===true)
+	{
+		$accum_size=$import_file_size;
+		$echoTimePre=0;
+	}else
+	{
+		$accum_size += $incr;
+	}
+	if($echoTimePre>=$now)
 	{
 		return;
 	}
@@ -186,13 +193,13 @@ if (($input = @fopen($import_file, 'r')) != false)
 		}
 		$row++;
 	}
+	progress(true);
 	if(count($sql_batch_arr)>0)
 	{
 		$sql_batch_arr_sql = $sql_batch . implode(','.PHP_EOL, $sql_batch_arr) . ';';
 		fwrite($output, $sql_batch_arr_sql . PHP_EOL);
 		$sql_batch_arr = [];
 	}
-	echo PHP_EOL;
 	fclose($input);
 }
 else

@@ -141,12 +141,12 @@ echo $msg;
 $output = fopen($export_file, 'w');
 fwrite($output, "CREATE DATABASE IF NOT EXISTS `{$database}`;\n");
 fwrite($output, 'CREATE TABLE `'.$database.'`.`'.$table.'` ('."\n");
-fwrite($output, '`id` INT(10) UNSIGNED NOT NULL AUTO_INCREMENT,'."\n");
+fwrite($output, '`__ID` INT(10) UNSIGNED NOT NULL AUTO_INCREMENT,'."\n");
 foreach ($headers as $key=>$header)
 {
 	fwrite($output, '`'.$header.'` TEXT,'."\n");//所有字段都用TEXT类型，字段不能超过64KB
 }
-fwrite($output, 'PRIMARY KEY (`id`)'."\n".') DEFAULT CHARACTER SET \'utf8mb4\';'."\n"."\n");
+fwrite($output, 'PRIMARY KEY (`__ID`)'."\n".') DEFAULT CHARACTER SET \'utf8mb4\';'."\n"."\n");
 if (($input = @fopen($import_file, 'r')) != false)
 {
 	$row = 1;

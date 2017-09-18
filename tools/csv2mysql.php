@@ -79,8 +79,10 @@ function progress($incr)
 	$percent = intval(($accum_size/$import_file_size)*100);
 	$gt = intval(($percent/2));
 	$elapsedTime = time() - $startTime;
+	$accum_size_h = humanFileSize($accum_size);
+	$import_file_size_h = humanFileSize($import_file_size);
 	$line_buf = implode([
-			'percent0'=>"[{$accum_size}/{$import_file_size}]",
+			'percent0'=>"[{$accum_size_h}/{$import_file_size_h}]",
 			'percent'=>"[{$percent}%]",
 			'elapsedTime'=>"[{$elapsedTime}s]",
 			'gt'=>str_repeat('>', $gt),
@@ -94,7 +96,7 @@ function progress($incr)
 	{
 		$line_buf_old = $line_buf;
 		$buf = str_pad($line_buf_old, $LINE_BUF_SZ, ' ');
-		echo "\r" . $buf . "\r";
+		echo "\r" . $buf;
 	}
 }
 

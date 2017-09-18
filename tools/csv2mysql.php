@@ -90,7 +90,6 @@ function progress($incr)
 
 if (($input = @fopen($import_file, 'r')) != false)
 {
-    static $SAMPLE_SUM = 1000;
     $row=1;
     while (($fields = fgetcsv($input, 0, ',')) != false)
     {
@@ -102,24 +101,7 @@ if (($input = @fopen($import_file, 'r')) != false)
             }
         }
         else
-        {
-            foreach ($fields as $key=>$value)
-            {
-                if (!isset($max_field_lengths[$key]))
-                {
-                    $max_field_lengths[$key] = 0;
-                }
-
-                if (strlen($value) > $max_field_lengths[$key])
-                {
-                    $max_field_lengths[$key] = strlen($value);
-                }
-                $field++;
-            }
-        }
-    $row++;
-    if($row>$SAMPLE_SUM)
-        break;
+        	break;
     }
     fclose($input);
 }
@@ -136,12 +118,12 @@ else
 */
 
 $output = fopen($export_file, 'w');
-fwrite($output, "CREATE DATABASE IF NOT EXISTS {$database};\n");
+fwrite($output, "CREATE DATABASE IF NOT EXISTS `{$database}`;\n");
 fwrite($output, 'CREATE TABLE `'.$database.'`.`'.$table.'` ('."\n");
 fwrite($output, '`id` INT(10) UNSIGNED NOT NULL AUTO_INCREMENT,'."\n");
 foreach ($headers as $key=>$header)
 {
-    fwrite($output, '`'.$header.'` TEXT,'."\n");
+    fwrite($output, '`'.$header.'` TEXT,'."\n");//所有字段都用TEXT类型，字段不能超过64KB
 }
 fwrite($output, 'PRIMARY KEY (`id`)'."\n".') DEFAULT CHARACTER SET \'utf8mb4\';'."\n"."\n");
 if (($input = @fopen($import_file, 'r')) != false)
@@ -152,7 +134,7 @@ if (($input = @fopen($import_file, 'r')) != false)
         if (sizeof($fields) != sizeof($headers))
         {   $fields_sz = sizeof($fields);
 		$headers_sz = sizeof($headers);
-            echo "ROW:{$row}, fields_sz:{$fields_sz}, headers_sz:{$headers_sz}, ".' NCORRECT NUMBER OF FIELDS  (search your file for \'\"\' string):';
+            echo "ROW:{$row}, fields_size:{$fields_sz}, headers_size:{$headers_sz}, ".' NCORRECT NUMBER OF FIELDS :';
             echo print_r($fields, true);
             die();
         }

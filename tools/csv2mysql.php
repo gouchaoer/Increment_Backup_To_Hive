@@ -21,6 +21,54 @@ $export_file = $argv[2];
 $database = $argv[3];
 $table = basename($export_file, '.sql');
 
+/*
+ |--------------------------------------------------------------------------
+| report progress.
+|--------------------------------------------------------------------------
+*/
+function progress($incr)
+{
+	global $import_file;
+	static $LINE_BUF_SZ = 64;
+	static $import_file_size=null;
+	static $accum_size=0;
+	static $startTime;
+	static $line_buf_old;
+	if($import_file_size===null)
+	{
+		$import_file_size = filesize($import_file);
+	}
+	if($startTime==null)
+	{
+		$tz = date_default_timezone_get();
+		if ($tz === "UTC")
+		{
+			date_default_timezone_set('Asia/Shanghai');
+		}
+		$startTime=time();
+	}
+	$accum_size += $incr;
+	$percent = intval(($accum_size/$import_file_size)*100);
+	$gt = intval(($percent/2));
+	$elapsedTime = time() - $startTime;
+	$line_buf = implode([
+			'percent0'=>"[{$accum_size}/{$import_file_size}]",
+			'percent'=>"[{$percent}%]",
+			'elapsedTime'=>"[{$elapsedTime}s]",
+			'gt'=>str_repeat('>', $gt),
+			]);
+	$line_buf_sz = strlen($line_buf);
+	if($line_buf_sz>$LINE_BUF_SZ)
+	{
+		$line_buf = substr($line_buf, 0, $LINE_BUF_SZ);
+	}
+	if($line_buf_old !== $line_buf)
+	{
+		$line_buf_old = $line_buf;
+		$buf = str_pad($line_buf_old, $LINE_BUF_SZ, ' ');
+		echo "\r" . $buf . "\r";
+	}
+}
 
 /*
 |--------------------------------------------------------------------------
@@ -96,13 +144,22 @@ if (($input = @fopen($import_file, 'r')) != false)
         if ($row != 1)
         {
             $sql = 'INSERT INTO `'.$database.'`.`'.$table.'` VALUES(null, ';
+            
             foreach ($fields as $field)
             {
                 $sql .= '\''.mysql_real_escape_string($field).'\', ';
             }
             $sql = rtrim($sql, ', ');
             $sql .= ');';
+
             fwrite($output, $sql."\n");
+            
+            static $sql_insert_sz = null;
+            if($sql_insert_sz===null)
+            {
+            	$sql_insert_sz = strlen("INSERT INTO `{$database}'`.`'{$table}` VALUES(null,");
+            }
+            progress(strlen($sql)-strlen($sql_insert_sz));
         }
         $row++;
     }

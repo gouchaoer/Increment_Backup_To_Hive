@@ -462,8 +462,11 @@ EOL;
             {
                 $hive_type = 'STRING';
             }
-            
-            $columns_str .= "`{$name}` {$hive_type}";
+            //`__ID`为https://github.com/gouchaoer/Increment_Backup_To_Hive/blob/master/tools/csv2mysql.php为csv文件自动生成自增int主键
+            if($name!=='__ID')
+            {
+            	$columns_str .= "`{$name}` {$hive_type}";
+            }
         }
         
         $hive_format_str = empty($HIVE_FORMAT) ? 'TEXTFILE' : strtoupper($HIVE_FORMAT);
@@ -642,6 +645,8 @@ EOL;
                         if (! empty($ROW_CALLBACK_CHANGE)) {
                             $row = $ROW_CALLBACK_CHANGE($row);
                         }
+                        //https://github.com/gouchaoer/Increment_Backup_To_Hive/blob/master/tools/csv2mysql.md
+                        unset($row['__ID']);
                         $row_keys =  array_keys($row);
                         if(count($row_keys)!==count(self::$hive_cols))
                         {

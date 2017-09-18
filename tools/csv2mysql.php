@@ -190,7 +190,12 @@ if (($input = @fopen($import_file, 'r')) != false)
 					//http://php.net/manual/en/function.iconv.php
 					//invalid charater 
 					if($tmp!==false)
+					{
 						$field=$tmp;
+					}else 
+					{
+						$field=null;
+					}
 				}
 				$sql .= ' ,\''.mysql_real_escape_string($field).'\'';
 			}

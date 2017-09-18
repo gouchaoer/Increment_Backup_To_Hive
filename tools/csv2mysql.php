@@ -184,7 +184,7 @@ if (($input = @fopen($import_file, 'r')) != false)
 			foreach ($fields as $field)
 			{
 				$incr+=strlen($field)+1;
-				if(!emtpy($iconv))
+				if(!empty($iconv))
 				{
 					$tmp = iconv($iconv, 'UTF-8', $field);
 					//http://php.net/manual/en/function.iconv.php

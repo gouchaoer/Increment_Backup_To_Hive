@@ -111,7 +111,8 @@ else
 {
 	die('Unable to open file "'.$import_file.'".'."\n");
 }
-$msg="csv header fileds: " . implode(', ', $headers) . PHP_EOL;
+$headers_sz = count($headers);
+$msg="csv header fileds[size:$headers_sz]: " . implode(', ', $headers) . PHP_EOL;
 echo $msg;
 /*
  |--------------------------------------------------------------------------
@@ -136,7 +137,6 @@ if (($input = @fopen($import_file, 'r')) != false)
 		if (sizeof($fields) != sizeof($headers))
 		{
 			$fields_sz = sizeof($fields);
-			$headers_sz = sizeof($headers);
 			echo "ROW:{$row}, fields_size:{$fields_sz}, headers_size:{$headers_sz}, ".' NCORRECT NUMBER OF FIELDS :';
 			echo print_r($fields, true);
 			die();

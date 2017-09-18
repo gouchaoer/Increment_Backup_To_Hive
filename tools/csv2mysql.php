@@ -11,7 +11,7 @@
 
 
 /*
-|--------------------------------------------------------------------------
+ |--------------------------------------------------------------------------
 | Set variables for conversion.
 |--------------------------------------------------------------------------
 */
@@ -26,9 +26,9 @@ if(!function_exists('mysql_real_escape_string'))
 	function mysql_real_escape_string($str)
 	{
 		static $search = array("\\",  "\x00", "\n",  "\r",  "'",  '"', "\x1a");
-    		static $replace = array("\\\\","\\0","\\n", "\\r", "\'", '\"', "\\Z");
+		static $replace = array("\\\\","\\0","\\n", "\\r", "\'", '\"', "\\Z");
 
-    		return str_replace($search, $replace, $str);
+		return str_replace($search, $replace, $str);
 	}
 }
 
@@ -83,39 +83,38 @@ function progress($incr)
 }
 
 /*
-|--------------------------------------------------------------------------
+ |--------------------------------------------------------------------------
 | Run initial scan of CSV file.
 |--------------------------------------------------------------------------
 */
 $headers=[];
 if (($input = @fopen($import_file, 'r')) != false)
 {
-    if($fields = fgetcsv($input, 0, ',') != false)
-    {
+	if(($fields = fgetcsv($input, 0, ',')) != false)
+	{
+		foreach ($fields as $field)
+		{
+			if(empty($field))
+			{
+				die('csv header format error!');
+			}
+			$headers[] = str_ireplace(' ', '_', $field);
+		}
 
-            foreach ($fields as $field)
-            {
-            	if(empty($field))
-            	{
-            		die('csv header format error!');
-            	}
-                $headers[] = str_ireplace(' ', '_', $field);
-            }
-
-    }else
-    {
-    	die('csv file format error!');
-    }
-    fclose($input);
+	}else
+	{
+		die('csv file format error!');
+	}
+	fclose($input);
 }
 else
 {
-    die('Unable to open file "'.$import_file.'".'."\n");
+	die('Unable to open file "'.$import_file.'".'."\n");
 }
 $msg="csv header fileds: " . implode(', ', $headers) . PHP_EOL;
 echo $msg;
 /*
-|--------------------------------------------------------------------------
+ |--------------------------------------------------------------------------
 | Build new importable SQL file.
 |--------------------------------------------------------------------------
 */
@@ -126,48 +125,49 @@ fwrite($output, 'CREATE TABLE `'.$database.'`.`'.$table.'` ('."\n");
 fwrite($output, '`id` INT(10) UNSIGNED NOT NULL AUTO_INCREMENT,'."\n");
 foreach ($headers as $key=>$header)
 {
-    fwrite($output, '`'.$header.'` TEXT,'."\n");//所有字段都用TEXT类型，字段不能超过64KB
+	fwrite($output, '`'.$header.'` TEXT,'."\n");//所有字段都用TEXT类型，字段不能超过64KB
 }
 fwrite($output, 'PRIMARY KEY (`id`)'."\n".') DEFAULT CHARACTER SET \'utf8mb4\';'."\n"."\n");
 if (($input = @fopen($import_file, 'r')) != false)
 {
-    $row = 1;
-    while (($fields = fgetcsv($input, 1000, ',')) != false)
-    {
-        if (sizeof($fields) != sizeof($headers))
-        {   $fields_sz = sizeof($fields);
-		$headers_sz = sizeof($headers);
-            echo "ROW:{$row}, fields_size:{$fields_sz}, headers_size:{$headers_sz}, ".' NCORRECT NUMBER OF FIELDS :';
-            echo print_r($fields, true);
-            die();
-        }
+	$row = 1;
+	while (($fields = fgetcsv($input, 1000, ',')) != false)
+	{
+		if (sizeof($fields) != sizeof($headers))
+		{
+			$fields_sz = sizeof($fields);
+			$headers_sz = sizeof($headers);
+			echo "ROW:{$row}, fields_size:{$fields_sz}, headers_size:{$headers_sz}, ".' NCORRECT NUMBER OF FIELDS :';
+			echo print_r($fields, true);
+			die();
+		}
 
-        if ($row != 1)
-        {
-            $sql = 'INSERT INTO `'.$database.'`.`'.$table.'` VALUES(null, ';
-            
-            foreach ($fields as $field)
-            {
-                $sql .= '\''.mysql_real_escape_string($field).'\', ';
-            }
-            $sql = rtrim($sql, ', ');
-            $sql .= ');';
+		if ($row != 1)
+		{
+			$sql = 'INSERT INTO `'.$database.'`.`'.$table.'` VALUES(null, ';
 
-            fwrite($output, $sql."\n");
-            
-            static $sql_insert_sz = null;
-            if($sql_insert_sz===null)
-            {
-            	$sql_insert_sz = strlen("INSERT INTO `{$database}'`.`'{$table}` VALUES(null,");
-            }
-            progress(strlen($sql)-strlen($sql_insert_sz));
-        }
-        $row++;
-    }
-    fclose($input);
+			foreach ($fields as $field)
+			{
+				$sql .= '\''.mysql_real_escape_string($field).'\', ';
+			}
+			$sql = rtrim($sql, ', ');
+			$sql .= ');';
+
+			fwrite($output, $sql."\n");
+
+			static $sql_insert_sz = null;
+			if($sql_insert_sz===null)
+			{
+				$sql_insert_sz = strlen("INSERT INTO `{$database}'`.`'{$table}` VALUES(null,");
+			}
+			progress(strlen($sql)-strlen($sql_insert_sz));
+		}
+		$row++;
+	}
+	fclose($input);
 }
 else
 {
-    echo 'Unable to open file "'.$import_file.'".'."\n";
+	echo 'Unable to open file "'.$import_file.'".'."\n";
 }
 fclose($output);

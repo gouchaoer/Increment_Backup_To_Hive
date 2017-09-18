@@ -17,10 +17,9 @@
 */
 
 $import_file = $argv[1];
-$export_file = $argv[2];
-$database = $argv[3];
-$table = basename($export_file, '.sql');
-
+$database = $argv[2];
+$table= $argv[3];
+$export_file = $table . '.sql';
 /*
  |--------------------------------------------------------------------------
 | report progress.

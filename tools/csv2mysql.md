@@ -7,7 +7,7 @@ Creates an importable MySQL file from a CSV file.
 Put the CSV file in the bin folder.  From command line:
 
 ```php
-php csv2mysql.php [input.csv] [mysql_table_name.sql] [mysql_database_name]
+php csv2mysql.php [input.csv] [mysql_database_name] [mysql_table_name]
 ```
 
 The script doesn't actually do anything to your database, but the importable file will need to know the destination database and table.

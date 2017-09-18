@@ -150,6 +150,8 @@ fwrite($output, 'PRIMARY KEY (`__ID`)'."\n".') DEFAULT CHARACTER SET \'utf8mb4\'
 if (($input = @fopen($import_file, 'r')) != false)
 {
 	$row = 1;
+	$sql_batch_arr = [];
+	$sql_batch="INSERT INTO `{$database}`.`{$table}` VALUES " . PHP_EOL;
 	while (($fields = fgetcsv($input)) != false)
 	{
 		if (sizeof($fields) != sizeof($headers))
@@ -162,22 +164,31 @@ if (($input = @fopen($import_file, 'r')) != false)
 
 		if ($row != 1)
 		{
-			$sql = 'INSERT INTO `'.$database.'`.`'.$table.'` VALUES(null, ';
-
+			$sql = '(null';
 			$incr = 0;
 			foreach ($fields as $field)
 			{
 				$incr+=strlen($field)+1;
-				$sql .= '\''.mysql_real_escape_string($field).'\', ';
+				$sql .= ' ,\''.mysql_real_escape_string($field).'\'';
 			}
-			$sql = rtrim($sql, ', ');
-			$sql .= ');';
-
-			fwrite($output, $sql."\n");
-
+			$sql .= ')';
+			
 			progress($incr);
+			$sql_batch_arr[]=$sql;
+		}
+		if(count($sql_batch_arr)>1000)
+		{
+			$sql_batch_arr_sql = $sql_batch . implode(','.PHP_EOL, $sql_batch_arr) . ';';
+			fwrite($output, $sql_batch_arr_sql . PHP_EOL);
+			$sql_batch_arr = [];
 		}
 		$row++;
+	}
+	if(count($sql_batch_arr)>0)
+	{
+		$sql_batch_arr_sql = $sql_batch . implode(','.PHP_EOL, $sql_batch_arr) . ';';
+		fwrite($output, $sql_batch_arr_sql . PHP_EOL);
+		$sql_batch_arr = [];
 	}
 	echo PHP_EOL;
 	fclose($input);

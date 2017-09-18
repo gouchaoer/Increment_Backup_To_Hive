@@ -87,7 +87,7 @@ function progress($incr)
 | Run initial scan of CSV file.
 |--------------------------------------------------------------------------
 */
-
+$headers=[];
 if (($input = @fopen($import_file, 'r')) != false)
 {
     if($fields = fgetcsv($input, 0, ',') != false)

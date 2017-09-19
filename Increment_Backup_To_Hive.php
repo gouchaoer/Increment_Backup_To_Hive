@@ -333,7 +333,8 @@ EOL;
         {
         	unlink($fn);
         }
-        Log::log_step("import to hive done, unlink all text_files_batch files", "file_buf_to_hive");
+        $exec_output = var_export($o,true);
+        Log::log_step("import to hive done, unlink all {$text_files_batch_ct} text_files_batch files. exec_output:{$exec_output}", "exec_output");
         self::$exported_to_file_size=0;
     }
 

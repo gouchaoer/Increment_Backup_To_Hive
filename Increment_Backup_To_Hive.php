@@ -260,7 +260,7 @@ class Increment_Backup_To_Hive
         $hive_format_str = empty($HIVE_FORMAT) ? 'TEXTFILE' : strtoupper($HIVE_FORMAT);
         //if enter is pressed, only import 1 file into hive to save time
         $text_files_batch=[];
-        if($this->check_enter_pressed())
+        if(static::check_enter_pressed())
         {
         	$msg="enter pressed, so only import one file to hive to save time";
         	$text_files_batch=[$text_files[0]];
@@ -565,10 +565,10 @@ EOL;
     }
 
     //检测回车键是否按下
-    private $enter_pressed=false;
+    static protected  $enter_pressed=false;
     static protected function check_enter_pressed()
     {
-    	if($this->enter_pressed===true)
+    	if(self::$enter_pressed===true)
     		return true;
         $read = [
             STDIN
@@ -582,7 +582,7 @@ EOL;
             return false;
         $data = stream_get_line(STDIN, 1);
         if (strpos($data, "\n") !== false) {
-        	$this->enter_pressed=true;
+        	self::$enter_pressed=true;
             return true;
         }
         //TODO:

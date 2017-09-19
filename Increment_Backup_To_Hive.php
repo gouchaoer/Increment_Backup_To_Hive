@@ -262,8 +262,9 @@ class Increment_Backup_To_Hive
         $text_files_batch=[];
         if(static::check_enter_pressed())
         {
-        	$msg="enter pressed, so only import one file to hive to save time";
         	$text_files_batch=[$text_files[0]];
+        	$msg="enter pressed, only import one file to hive to save time";
+        	Log::log_step($msg, "file_buf_to_hive");
         }else
         {
         	$text_files_batch=$text_files;

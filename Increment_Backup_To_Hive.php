@@ -320,7 +320,7 @@ EOL;
         //这里把hive的stderr重定向到stdout，因为hive会输出很多奇怪的stderr信息影响判断
         $exec_str = "hive -f " . self::$data_dir . "{$TABLE}-insert.sql 2>&1";
         $text_files_batch_ct = count($text_files_batch);
-        Log::log_step("text_files_batch_ct:{$text_files_batch_ct}, hive -f {$fn}", "file_buf_to_hive");
+        Log::log_step("text_files_batch_ct:{$text_files_batch_ct}, exec_str:{$exec_str}", "file_buf_to_hive");
         $o = null;
         $r = null;
         exec($exec_str, $o, $r);

@@ -155,7 +155,7 @@ echo $msg;
 
 $output = fopen($export_file, 'w');
 fwrite($output, "CREATE DATABASE IF NOT EXISTS `{$database}`;\n");
-fwrite($output, 'CREATE TABLE `'.$database.'`.`'.$table.'` ('."\n");
+fwrite($output, 'CREATE TABLE IF NOT EXISTS `'.$database.'`.`'.$table.'` ('."\n");
 fwrite($output, '`__ID` INT(10) UNSIGNED NOT NULL AUTO_INCREMENT,'."\n");
 foreach ($headers as $key=>$header)
 {

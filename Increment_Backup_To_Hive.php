@@ -255,12 +255,21 @@ class Increment_Backup_To_Hive
             return;
         }
         $text_files = glob(self::$data_dir . "/{$TABLE}-data-*");
-        
+        if(empty($text_files))
+        	return;
         $hive_format_str = empty($HIVE_FORMAT) ? 'TEXTFILE' : strtoupper($HIVE_FORMAT);
-        
-        foreach ($text_files as $fn) {
-            $o = null;
-            $r = null;
+        //if enter is pressed, only import 1 file into hive to save time
+        $text_files_batch=[];
+        if($this->check_enter_pressed())
+        {
+        	$msg="enter pressed, so only import one file to hive to save time";
+        	$text_files_batch=[$text_files[0]];
+        }else
+        {
+        	$text_files_batch=$text_files;
+        }
+        $sql = "USE `{$HIVE_DB}`;" . PHP_EOL;
+        foreach ($text_files_batch as $fn) {
             $v_base = basename($fn);
             $__PARTITIONS = substr($v_base, strlen("{$TABLE}-data-"));
             $partition_str = "";
@@ -268,7 +277,6 @@ class Increment_Backup_To_Hive
             {
                 $partition_str="PARTITION ( {$__PARTITIONS})";
             }
-            
             $table0=null;
             if($hive_format_str==='TEXTFILE')
             {
@@ -277,10 +285,8 @@ class Increment_Backup_To_Hive
             {
                 $table0=$HIVE_TABLE . "__tmp";
             }
-
             $fn2 = addslashes($fn);
-            $sql = <<<EOL
-USE `{$HIVE_DB}`;
+            $sql .= <<<EOL
 LOAD DATA LOCAL INPATH '{$fn2}' INTO TABLE `{$table0}` {$partition_str};
 
 EOL;
@@ -305,19 +311,28 @@ EOL;
                 $sql .= <<<EOL
 INSERT INTO TABLE `{$table1}` {$partition_str} SELECT {$hive_cols_str} FROM `{$table0}`;
 TRUNCATE TABLE `{$table0}`;
+
 EOL;
             }
-            file_put_contents(self::$data_dir . "{$TABLE}-insert.sql", $sql);
-            $exec_str = "hive -f " . self::$data_dir . "{$TABLE}-insert.sql";
-            Log::log_step("fn:{$fn}", "file_buf_to_hive");
-            exec($exec_str, $o, $r);
-            if ($r !== 0) {
-                $msg = var_export($o, true);
-                Log::log_step($msg, 'file_buf_to_hive', true);
-                exit(1);
-            }
-            unlink($fn);
         }
+        file_put_contents(self::$data_dir . "{$TABLE}-insert.sql", $sql);
+        //这里把hive的stderr重定向到stdout，因为hive会输出很多奇怪的stderr信息影响判断
+        $exec_str = "hive -f " . self::$data_dir . "{$TABLE}-insert.sql 2>&1";
+        $text_files_batch_ct = count($text_files_batch);
+        Log::log_step("text_files_batch_ct:{$text_files_batch_ct}, hive -f {$fn}", "file_buf_to_hive");
+        $o = null;
+        $r = null;
+        exec($exec_str, $o, $r);
+        if ($r !== 0) {
+        	$msg = var_export($o, true);
+        	Log::log_step($msg, 'file_buf_to_hive', true);
+        	exit(1);
+        }
+        foreach ($text_files_batch as $fn) 
+        {
+        	unlink($fn);
+        }
+        Log::log_step("import to hive done, unlink all text_files_batch files", "file_buf_to_hive");
         self::$exported_to_file_size=0;
     }
 
@@ -402,7 +417,7 @@ EOL;
             // DROP hive table
             $o = null;
             $r = null;
-            $exec_str = "hive -e 'CREATE DATABASE IF NOT EXISTS `{$HIVE_DB}`; USE `{$HIVE_DB}`; DROP TABLE IF EXISTS `{$HIVE_TABLE}`; DROP TABLE IF EXISTS `{$HIVE_TABLE}__tmp`'";
+            $exec_str = "hive -e 'CREATE DATABASE IF NOT EXISTS `{$HIVE_DB}`; USE `{$HIVE_DB}`; DROP TABLE IF EXISTS `{$HIVE_TABLE}`; DROP TABLE IF EXISTS `{$HIVE_TABLE}__tmp`' 2>&1";
             exec($exec_str, $o, $r);
             if ($r !== 0) {
                 $o_text = implode("\n", $o);
@@ -526,7 +541,7 @@ EOL;
         if (substr($type, 0, 1) === 'Y' || substr($type, 0, 1) === 'y') {
             $o = null;
             $r = null;
-            $exec_str = "hive -f {$hive_schema_fn}";
+            $exec_str = "hive -f {$hive_schema_fn} 2>&1";
             exec($exec_str, $o, $r);
             if ($r !== 0) {
                 $o_text = implode("\n", $o);
@@ -550,8 +565,11 @@ EOL;
     }
 
     //检测回车键是否按下
+    private $enter_pressed=false;
     static protected function check_enter_pressed()
     {
+    	if($this->enter_pressed===true)
+    		return true;
         $read = [
             STDIN
         ];
@@ -564,6 +582,7 @@ EOL;
             return false;
         $data = stream_get_line(STDIN, 1);
         if (strpos($data, "\n") !== false) {
+        	$this->enter_pressed=true;
             return true;
         }
         //TODO:

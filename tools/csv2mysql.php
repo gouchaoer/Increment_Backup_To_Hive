@@ -194,10 +194,10 @@ if (($input = @fopen($import_file, 'r')) != false)
 						$field=$tmp;
 					}else 
 					{
-						$field=null;
+						$field='';//there's no null in csv
 					}
 				}
-				$sql .= ' ,\''.mysql_real_escape_string($field).'\'';
+					$sql .= ", '" . mysql_real_escape_string($field) . "'";
 			}
 			$sql .= ')';
 			

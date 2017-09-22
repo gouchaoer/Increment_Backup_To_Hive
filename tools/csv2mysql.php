@@ -188,15 +188,22 @@ if (($input = @fopen($import_file, 'r')) != false)
 				{
 					$tmp = iconv($iconv, 'UTF-8', $field);
 					//http://php.net/manual/en/function.iconv.php
-					//invalid charater 
-					if($tmp!==false)
+					
+					if($tmp==='\N')//null in csv
 					{
-						$field=$tmp;
+						$field=null;
+					}
+					else if($tmp===false)//invalid charater 
+					{
+						$field='';
 					}else 
 					{
-						$field='';//there's no null in csv
+						$field=$tmp; 
 					}
 				}
+				if($field===null)
+					$sql .= ", null";
+				else
 					$sql .= ", '" . mysql_real_escape_string($field) . "'";
 			}
 			$sql .= ')';

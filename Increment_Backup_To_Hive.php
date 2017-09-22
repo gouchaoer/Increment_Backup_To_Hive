@@ -825,7 +825,8 @@ class Log
             self::setting();
         }
         $now = time();
-        $str = date('Y-m-d H:i:s', $now) . " [$cate] {$message}\r\n";
+        $php_fn = basename(__FILE__);
+        $str = date('Y-m-d H:i:s', $now) . " [{$php_fn}][{$cate}] {$message}\r\n";
         if ($stderr === false) {
             echo $str;
         } else {

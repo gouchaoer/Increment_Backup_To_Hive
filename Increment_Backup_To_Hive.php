@@ -824,9 +824,10 @@ class Log
         if (empty(self::$start)) {
             self::setting();
         }
+        global $TABLE;
         $now = time();
         $php_fn = basename(__FILE__);
-        $str = date('Y-m-d H:i:s', $now) . " [{$php_fn}][{$cate}] {$message}\r\n";
+        $str = date('Y-m-d H:i:s', $now) . " [{$TABLE}][{$cate}] {$message}\r\n";
         if ($stderr === false) {
             echo $str;
         } else {

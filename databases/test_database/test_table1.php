@@ -45,8 +45,8 @@ $HIVE_FORMAT = null;
  'partition_month' => function(Array $row)
  {
 	 $created_date = empty($row['created_date'])? 0:$row['created_date'];
-	 $created_date_str = date('Y-m-d H:i:s', $created_date)
-	 $partition = substr($created_date, 0, 7);
+	 $created_date_str = date('Y-m-d H:i:s', $created_date);
+	 $partition = substr($created_date_str, 0, 7);
 	 return $partition;
  },
  'partition_province' => function(Array $row)

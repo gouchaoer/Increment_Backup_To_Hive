@@ -402,7 +402,7 @@ EOL;
         global $HIVE_FORMAT;
         global $ROW_CALLBACK_PARTITIONS;
         
-        $msg = "create hive table:{$HIVE_TABLE}?\nthis will drop old hive table:{$HIVE_TABLE} and  delete all old {$TABLE}'s data files.\ntype (Y/y) for yes, others for no.";
+        $msg = "create hive table:{$HIVE_TABLE}?\nthis will drop old hive table:{$HIVE_DB}.{$HIVE_TABLE} and  delete all old {$TABLE}'s data files.\ntype (Y/y) for yes, others for no.";
         Log::log_step($msg, 'controller_create');
         $type = fgets(STDIN);
         if (substr($type, 0, 1) === 'Y' || substr($type, 0, 1) === 'y') {

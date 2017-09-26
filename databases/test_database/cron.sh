@@ -7,4 +7,4 @@ source /etc/profile
 cd `dirname $0`
 
 #添加要备份的表
-php test_table1.php  >>cron.log 2>>cron_error.log
+php test_table1.php backup  >>cron.log 2>>cron_error.log

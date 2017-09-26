@@ -56,13 +56,12 @@ $HIVE_FORMAT = null;
  }
  ];
  
-   //表中没有分区字段，现在按照备份时间进行按天分区
+   //表中date字段代表插入时间，类型为DATETIME，现在按照备份时间进行按天分区
  $ROW_CALLBACK_PARTITIONS = [
  'partition_day' => function(Array $row)
  {
-	 $created_date = time()
-	 $created_date_str = date('Y-m-d H:i:s', $created_date)
-	 $partition = substr($created_date, 0, 7);
+	 $date = empty($row['date'])?date("Y-m-d H:i:s" , time()):$row['date'];
+	 $partition = substr($date, 0, 10);
 	 return $partition;
  }
  ];

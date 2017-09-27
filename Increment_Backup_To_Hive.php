@@ -413,7 +413,7 @@ EOL;
             foreach ($hive_table_cache_files as $file) {
                 @unlink($file);
             }
-            $msg = "data files deleted:{$files_text}";
+            $msg = "data files deleted:" . PHP_EOL . "{$files_text}" ;
             Log::log_step($msg, 'controller_create');
             
             // DROP hive table
@@ -755,6 +755,7 @@ EOL;
             Log::log_step($msg);
             exit(1);
         }
+        Log::log_step("complete, exit...");
     }
 }
 

@@ -639,6 +639,10 @@ EOL;
                     $sql = "SELECT * FROM `{$TABLE}` WHERE `{$TABLE_AUTO_INCREMENT_ID}`>={$ID} AND `{$TABLE_AUTO_INCREMENT_ID}`<{$ID2}";
                 }
                 $rs = self::$dbh->query($sql);
+                if($rs===false)
+                {
+                	throw new Exception("PDO query return false, sql:{$sql}");
+                }
                 $rows = $rs->fetchAll(PDO::FETCH_ASSOC);
                 
                 if (count($rows > 0)) {

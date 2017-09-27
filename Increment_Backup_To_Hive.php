@@ -334,7 +334,7 @@ EOL;
         	unlink($fn);
         }
         $exec_output = var_export($o,true);
-        Log::log_step("import to hive done, unlink all {$text_files_batch_ct} text_files_batch files. exec_output:{$exec_output}", "exec_output");
+        Log::log_step("import to hive done, force:{$force}, unlink all {$text_files_batch_ct} text_files_batch files. exec_output:{$exec_output}", "exec_output");
         self::$exported_to_file_size=0;
     }
 
@@ -716,10 +716,9 @@ EOL;
             $msg = "PDO Exception:" . $e->getMessage();
             Log::log_step($msg, 'PDO', true);
             exit(1);
-        } finally 
-		{
-		    static::file_buf_to_hive(true);
         }
+		
+        static::file_buf_to_hive(true);
     }
 
     static public function run()

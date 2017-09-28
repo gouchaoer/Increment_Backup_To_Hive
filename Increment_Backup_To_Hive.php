@@ -70,7 +70,15 @@ class Increment_Backup_To_Hive
         });
         
         try {
-            self::$dbh = new PDO(self::$config_arr['DB_DSN'], self::$config_arr['DB_USER'], self::$config_arr['DB_PASSWD']);
+            self::$dbh = new PDO(
+            		self::$config_arr['DB_DSN'], 
+            		self::$config_arr['DB_USER'], 
+            		self::$config_arr['DB_PASSWD'],
+            		[
+            				PDO::ATTR_TIMEOUT => 30,
+            				PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION
+            		]
+            		);
             self::$dbh->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
         } catch (PDOException $e) {
             $msg = "PDO Connection failed, exit 1... " . $e->getMessage();

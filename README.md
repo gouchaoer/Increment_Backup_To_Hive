@@ -34,7 +34,7 @@
  $ROW_CALLBACK_PARTITIONS = [
  'partition_day' => function(Array $row)
  {
-	 $created_date = empty($row['created_date'])?'0000-00-00 00:00:00':$row['created_date'];	 
+	 $created_date = empty($row['created_date'])?'0000-00-00 00:00:00':$row['created_date'];
 	 $partition = substr($created_date, 0, 10);
 	 return $partition;
  }
@@ -46,8 +46,8 @@
  'partition_month' => function(Array $row)
  {
 	 $created_date = empty($row['created_date'])? 0:$row['created_date'];
-	 $created_date_str = date('Y-m-d H:i:s', $created_date)
-	 $partition = substr($created_date, 0, 7);
+	 $created_date_str = date('Y-m-d H:i:s', $created_date);
+	 $partition = substr($created_date_str, 0, 7);
 	 return $partition;
  },
  'partition_province' => function(Array $row)
@@ -61,9 +61,8 @@
  $ROW_CALLBACK_PARTITIONS = [
  'partition_day' => function(Array $row)
  {
-	 $created_date = time()
-	 $created_date_str = date('Y-m-d H:i:s', $created_date)
-	 $partition = substr($created_date, 0, 7);
+	 $date = empty($row['date'])?date("Y-m-d H:i:s" , time()):$row['date'];
+	 $partition = substr($date, 0, 10);
 	 return $partition;
  }
  ];

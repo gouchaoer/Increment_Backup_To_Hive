@@ -70,12 +70,14 @@ class Increment_Backup_To_Hive
         });
         
         try {
+        	//https://stackoverflow.com/questions/29493197
+        	ini_set("default_socket_timeout", 2);
             self::$dbh = new PDO(
             		self::$config_arr['DB_DSN'], 
             		self::$config_arr['DB_USER'], 
             		self::$config_arr['DB_PASSWD'],
             		[
-            				PDO::ATTR_TIMEOUT => 30,
+            				PDO::ATTR_TIMEOUT => 300,
             				PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION
             		]
             		);

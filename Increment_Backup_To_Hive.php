@@ -800,7 +800,7 @@ class Log
         
         $tz = date_default_timezone_get();
         if ($tz === "UTC") // 为设置时区
-{
+		{
             date_default_timezone_set('Asia/Shanghai');
         }
         

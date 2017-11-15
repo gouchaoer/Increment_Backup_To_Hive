@@ -771,28 +771,6 @@ EOL;
         }
         Log::log_step("complete, exit...");
     }
-    
-    static public function alarmForward($str)
-    {
-    	static::alarm($str);
-    }
-    static public function alarm($str)
-    {
-    	//override this method in subclass
-    	/*
-    	$curl = curl_init();
-    	curl_setopt($curl, CURLOPT_URL, 'http://alarm.test.com');
-    	curl_setopt($curl, CURLOPT_HEADER, 1);
-    	curl_setopt($curl, CURLOPT_RETURNTRANSFER, 1);
-    	curl_setopt($curl, CURLOPT_POST, 1);
-    	$post_data = array(
-    			"username" => "coder",
-    			"password" => "12345");
-    	curl_setopt($curl, CURLOPT_POSTFIELDS, $post_data);
-    	$res = curl_exec($curl);
-    	self::log_step("alarm res:{$res}", 'alarm');
-    	*/
-    }
 }
 
 // 简单的Log类
@@ -861,6 +839,7 @@ class Log
 
     static public function log_step($message, $cate = null, $stderr = false)
     {
+    	global $ALARM;
         if (empty(self::$start)) {
             self::setting();
         }
@@ -875,7 +854,10 @@ class Log
             fwrite($fh, $str);
             fclose($fh);
             // an error happend, let's alarmForward
-            Increment_Backup_To_Hive::alarmForward($str);
+            if(!empty($ALARM))
+            {
+            	$ALARM($str);
+            }
         }
         self::log_file($str);
         if (! empty($cate)) {

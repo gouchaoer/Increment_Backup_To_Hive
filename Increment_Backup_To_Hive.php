@@ -396,7 +396,12 @@ EOL;
             $buffer_arr_sz += $buffer_sz;
             $fn = self::$data_dir . "/{$TABLE}-data-{$__PARTITIONS}";
             //$fn2 = addslashes($fn);
-            file_put_contents($fn, $buffer, FILE_APPEND);
+            $res = file_put_contents($fn, $buffer, FILE_APPEND);
+            if($res===false)
+            {
+            	Log::log_step("file_put_contents return false, this may be the disk is full, exit...", 'export_to_file_buf', true);
+            	exit(1);
+            }
         }
         self::$exported_to_file_size += $buffer_arr_sz;
         $rows_new_ct = count($rows_new);
@@ -711,15 +716,14 @@ EOL;
 
                     $msg = date('Y-m-d H:i:s') . " ID>={$ID} AND ID<{$ID2}\n";
                     $exportedId_fn = self::$data_dir . $TABLE . '-exportedId';
-                    file_put_contents($exportedId_fn, $msg, FILE_APPEND);
                     clearstatcache();
                     if(filesize($exportedId_fn) > Log::LOG_MAX)
                     {
                         $old_fn = $exportedId_fn . ".old";
                         @unlink($old_fn);
                         rename($exportedId_fn, $old_fn);
-                        file_put_contents($exportedId_fn, $msg, FILE_APPEND);
                      }
+                     file_put_contents($exportedId_fn, $msg, FILE_APPEND);
                 } 
                 $ID += $BATCH;
                 $rs = null;
@@ -848,11 +852,31 @@ class Log
             $fh = fopen('php://stderr', 'a');
             fwrite($fh, $str);
             fclose($fh);
+            // an error happend, let's alarm
+            static::alarm($str);
         }
         self::log_file($str);
         if (! empty($cate)) {
             self::log_file($str, $cate);
         }
+    }
+    
+    static public function alarm($str)
+    {
+    	//override this method in subclass
+    	/*
+    	$curl = curl_init();
+    	curl_setopt($curl, CURLOPT_URL, 'http://alarm.test.com');
+    	curl_setopt($curl, CURLOPT_HEADER, 1);
+    	curl_setopt($curl, CURLOPT_RETURNTRANSFER, 1);
+    	curl_setopt($curl, CURLOPT_POST, 1);
+    	$post_data = array(
+    			"username" => "coder",
+       			"password" => "12345");
+    	curl_setopt($curl, CURLOPT_POSTFIELDS, $post_data);
+    	$res = curl_exec($curl);
+    	self::log_step("alarm res:{$res}", 'alarm');
+    	*/
     }
 }
 

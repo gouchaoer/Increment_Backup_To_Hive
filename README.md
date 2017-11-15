@@ -96,9 +96,11 @@ $ROW_CALLBACK_CHANGE=function (Array $row)
     			"password" => "12345");
     	curl_setopt($curl, CURLOPT_POSTFIELDS, $post_data);
     	$res = curl_exec($curl);
+        if($res===false){
         $fh = fopen('php://stderr', 'a');
-        fwrite($fh, "alarm res:{$res}");
+        fwrite($fh, "alarm failed!" . PHP_EOL);
         fclose($fh);
+        }
     }
 ```
 - $WORK_DIR:设置工作目录，必须为__DIR__

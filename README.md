@@ -82,7 +82,7 @@ $ROW_CALLBACK_CHANGE=function (Array $row)
  }
  ``` 
 - $EXPORTED_FILE_BUFFER:文本文件缓存大小(Byte)，脚本会把数据缓存到本地文件中，最后再统一导入hive，默认的null为8G
-- $ALARM:出现错误的时候报警回掉函数，类似：
+- $ALARM:出现错误的时候报警回掉函数，默认null为不需要，使用时类似：
 ```
  $ALARM = function($str)
     {
@@ -96,7 +96,9 @@ $ROW_CALLBACK_CHANGE=function (Array $row)
     			"password" => "12345");
     	curl_setopt($curl, CURLOPT_POSTFIELDS, $post_data);
     	$res = curl_exec($curl);
-    	self::log_step("alarm res:{$res}", 'alarm');
+        $fh = fopen('php://stderr', 'a');
+        fwrite($fh, "alarm res:{$res}");
+        fclose($fh);
     }
 ```
 - $WORK_DIR:设置工作目录，必须为__DIR__

@@ -723,7 +723,12 @@ EOL;
                         @unlink($old_fn);
                         rename($exportedId_fn, $old_fn);
                      }
-                     file_put_contents($exportedId_fn, $msg, FILE_APPEND);
+                     $res = file_put_contents($exportedId_fn, $msg, FILE_APPEND);
+                     if($res===false)
+                     {
+                     	Log::log_step("file_put_contents return false, this may be the disk is full, exit...", 'export_to_file_buf', true);
+                     	exit(1);
+                     }
                 } 
                 $ID += $BATCH;
                 $rs = null;

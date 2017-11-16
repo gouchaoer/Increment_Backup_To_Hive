@@ -635,11 +635,7 @@ EOL;
                     break;
                 }
                 
-                $mem_sz = memory_get_usage();
-                $mem_sz_pk = memory_get_peak_usage();
                 $BATCH = empty($TABLE_BATCH) ? 1000 : $TABLE_BATCH;
-                $msg = "ID:{$ID}, BATCH:{$BATCH}, mem_sz:{$mem_sz}, mem_sz_pk:{$mem_sz_pk}";
-                Log::log_step($msg);
                 
                 $sql = null;
                 $ID2 = $ID + $BATCH;
@@ -730,6 +726,12 @@ EOL;
                      	exit(1);
                      }
                 } 
+                
+                $rows_ct = count($rows);
+                $mem_sz = memory_get_usage();
+                $msg = "ID:{$ID}, BATCH:{$BATCH}, mem_sz:{$mem_sz}, rows_ct:{$rows_ct}";
+                Log::log_step($msg);
+                
                 $ID += $BATCH;
                 $rs = null;
                 $rows = null;
@@ -778,8 +780,7 @@ EOL;
 class Log
 {
 
-    const LOG_MAX = 8 * 1204 * 1024;
- // 8M
+    const LOG_MAX = 32 * 1204 * 1024;// 32M
     protected static $start = null;
 
     protected static $log = null;
@@ -848,9 +849,11 @@ class Log
         $now = time();
         $php_fn = basename(__FILE__);
         $str = date('Y-m-d H:i:s', $now) . " [{$TABLE}][{$cate}] {$message}\r\n";
-        if ($stderr === false) {
+        if ($stderr === false) 
+        {
             echo $str;
-        } else {
+        } else 
+        {
             $fh = fopen('php://stderr', 'a');
             fwrite($fh, $str);
             fclose($fh);
@@ -861,7 +864,8 @@ class Log
             }
         }
         self::log_file($str);
-        if (! empty($cate)) {
+        if (! empty($cate)) 
+        {
             self::log_file($str, $cate);
         }
     }

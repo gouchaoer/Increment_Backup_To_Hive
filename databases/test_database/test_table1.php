@@ -92,7 +92,7 @@ $EXPORTED_FILE_BUFFER = null;
 
 
 /**
- * 出现错误的时候报警回掉函数，默认null为不需要，使用时类似：
+ * 当stderr输出错误的时候报警回掉函数，默认null为不需要，使用时类似：
 ```
 $ALARM = function($str)
 {

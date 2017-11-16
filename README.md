@@ -84,24 +84,28 @@ $ROW_CALLBACK_CHANGE=function (Array $row)
 - $EXPORTED_FILE_BUFFER:文本文件缓存大小(Byte)，脚本会把数据缓存到本地文件中，最后再统一导入hive，默认的null为8G
 - $ALARM:出现错误的时候报警回掉函数，默认null为不需要，使用时类似：
 ```
- $ALARM = function($str)
-    {
-    	$curl = curl_init();
-    	curl_setopt($curl, CURLOPT_URL, 'http://alarm.test.com');
-    	curl_setopt($curl, CURLOPT_HEADER, 1);
-    	curl_setopt($curl, CURLOPT_RETURNTRANSFER, 1);
-    	curl_setopt($curl, CURLOPT_POST, 1);
-    	$post_data = array(
-    			"username" => "coder",
-    			"password" => "12345");
-    	curl_setopt($curl, CURLOPT_POSTFIELDS, $post_data);
-    	$res = curl_exec($curl);
-        if($res===false){
-        $fh = fopen('php://stderr', 'a');
-        fwrite($fh, "alarm failed!" . PHP_EOL);
-        fclose($fh);
-        }
-    }
+$ALARM = function($str)
+{
+	$config_path = __DIR__ . "/config.ini";
+    $config_arr = parse_ini_file($config_path);
+            
+	$curl = curl_init();
+	curl_setopt($curl, CURLOPT_URL, $config_arr['ALARM_URL']);
+	curl_setopt($curl, CURLOPT_HEADER, 1);
+	curl_setopt($curl, CURLOPT_RETURNTRANSFER, 1);
+	curl_setopt($curl, CURLOPT_POST, 1);
+	$post_data = array(
+		"name" => $config_arr['ALARM_NAME'],
+		"msg" => $str);
+	curl_setopt($curl, CURLOPT_POSTFIELDS, $post_data);
+	$res = curl_exec($curl);
+	if($res===false)
+	{
+		$fh = fopen('php://stderr', 'a');
+		fwrite($fh, "alarm failed to send message:{$str}" . PHP_EOL);
+		fclose($fh);
+	}
+}
 ```
 - $WORK_DIR:设置工作目录，必须为__DIR__
 

@@ -84,7 +84,7 @@ class Increment_Backup_To_Hive
             self::$dbh->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
         } catch (PDOException $e) {
             $msg = "PDO Connection failed, exit 1... " . $e->getMessage();
-            Log::log_step($msg);
+            Log::log_step($msg, 'init', true);
             exit(1);
         }
     }

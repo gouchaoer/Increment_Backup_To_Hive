@@ -764,10 +764,6 @@ EOL;
             static::controller_create();
         } else if ($arg === $supported_arguments[1]) {
             static::controller_backup();
-        } else {
-            $msg = "{$arg} not supported, exit 1";
-            Log::log_step($msg);
-            exit(1);
         }
         Log::log_step("complete, exit...");
     }

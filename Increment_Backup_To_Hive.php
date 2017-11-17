@@ -196,6 +196,8 @@ class Increment_Backup_To_Hive
     //decide where to start backup
     static protected function id_start()
     {
+    	global $HIVE_DB;
+    	global $HIVE_TABLE;
         global $TABLE;
         global $TABLE_AUTO_INCREMENT_ID;
         
@@ -219,7 +221,25 @@ class Increment_Backup_To_Hive
             return $ID_START;
         }
         
-        // first time backup
+        //ID_START not parsed in {$exportedId_fn}. Backup for the first time, let's check if there's data in the hive
+        $sql = "'USE `{$HIVE_DB}`;SELECT * FROM {$HIVE_TABLE} LIMIT 1;'";
+		//重定向stderr到/dev/null，因为要根据stdout有无来判断表是否为空
+        $exec_str = "hive -e {$sql} 2>/dev/null";
+        $o = null;
+        $r = null;
+        exec($exec_str, $o, $r);
+        if ($r !== 0) {
+        	$msg = var_export($o, true);
+        	Log::log_step("exec_str:{$exec_str}, {$msg}", 'id_start', true);
+        	exit(1);
+        }
+        if(!empty($o))
+        {
+        	$msg="ID_START not parsed in {$exportedId_fn} means that this is the first time to backup. But you already have data in {$HIVE_DB}.{$HIVE_TABLE}. Maybe the {$exportedId_fn} has last...exit";
+        	Log::log_step($msg, 'id_start', true);
+        	exit(1);
+        }
+        
         if (empty($TABLE_AUTO_INCREMENT_ID)) {
             $ID_START = 0;
             $msg = 'TABLE_AUTO_INCREMENT_ID is null, set ID_START=0';
@@ -655,8 +675,8 @@ EOL;
                 	throw new Exception("PDO query return false, sql:{$sql}");
                 }
                 $rows = $rs->fetchAll(PDO::FETCH_ASSOC);
-                
-                if (count($rows > 0)) {
+                $rows_ct = count($rows);
+                if ($rows_ct > 0) {
                     $rows_new = [];
                     // 分区
                     $__PARTITIONS = '';
@@ -710,7 +730,7 @@ EOL;
                     }
                     static::export_to_file_buf($rows_new);
 
-                    $msg = date('Y-m-d H:i:s') . " ID>={$ID} AND ID<{$ID2}\n";
+                    $msg = date('Y-m-d H:i:s') . " rows_ct:{$rows_ct}, ID>={$ID} AND ID<{$ID2}\n";
                     $exportedId_fn = self::$data_dir . $TABLE . '-exportedId';
                     clearstatcache();
                     if(filesize($exportedId_fn) > Log::LOG_MAX)
@@ -726,8 +746,7 @@ EOL;
                      	exit(1);
                      }
                 } 
-                
-                $rows_ct = count($rows);
+
                 $mem_sz = memory_get_usage();
                 $msg = "ID:{$ID}, BATCH:{$BATCH}, mem_sz:{$mem_sz}, rows_ct:{$rows_ct}";
                 Log::log_step($msg);
@@ -834,7 +853,7 @@ class Log
             @unlink($old_fn);
             rename($fn, $old_fn);
             $now = time();
-            $msg = date('Y-m-d H:i:s', $now) . " [], rotate log file, filesize:{$filesize}\r\n";
+            $msg = date('Y-m-d H:i:s', $now) . " [], rotate log file, filesize:{$filesize}".PHP_EOL;
             file_put_contents($fn, $msg, FILE_APPEND);
         }
     }
@@ -848,7 +867,7 @@ class Log
         global $TABLE;
         $now = time();
         $php_fn = basename(__FILE__);
-        $str = date('Y-m-d H:i:s', $now) . " [{$TABLE}][{$cate}] {$message}\r\n";
+        $str = date('Y-m-d H:i:s', $now) . " [{$TABLE}][{$cate}] {$message}".PHP_EOL;
         if ($stderr === false) 
         {
             echo $str;

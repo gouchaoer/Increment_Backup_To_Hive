@@ -733,7 +733,7 @@ EOL;
                     $msg = date('Y-m-d H:i:s') . " rows_ct:{$rows_ct}, ID>={$ID} AND ID<{$ID2}\n";
                     $exportedId_fn = self::$data_dir . $TABLE . '-exportedId';
                     clearstatcache();
-                    if(filesize($exportedId_fn) > Log::LOG_MAX)
+                    if(@filesize($exportedId_fn) > Log::LOG_MAX)
                     {
                         $old_fn = $exportedId_fn . ".old";
                         @unlink($old_fn);

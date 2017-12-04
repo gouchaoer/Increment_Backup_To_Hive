@@ -681,6 +681,7 @@ EOL;
                     // 分区
                     $__PARTITIONS = '';
                     foreach ($rows as $row) {
+                    	$stop=false;
                         if (! empty($ROW_CALLBACK_PARTITIONS)) {
                             $__PARTITIONS = '';
                             $idx = 0;
@@ -691,6 +692,10 @@ EOL;
                                 }
                                 $idx ++;
                                 $callback_v = $callback instanceof \Closure ? $callback($row) : $callback;
+                                if($callback_v===false){
+                                	$stop=true;
+                                	break;
+                                }
                                 if ( empty($callback_v) && $callback !== '0' ) {
                                     $__PARTITIONS .= "{$partition_name}='empty'";//hive partition can't be a empty string
                                 } else {
@@ -698,7 +703,12 @@ EOL;
                                 }
                             }
                         }
-                        
+                        if($stop===true){
+                        	$msg='For row:' . substr(var_export($row, true), 0, 256) . 
+                        	', $ROW_CALLBACK_PARTITIONS return false, which means that backup should stop here';
+                        	Log::log_step($msg, 'controller_backup');
+                        	break;
+                        }
                         // 处理行使之和hive格式一致
                         if (! empty($ROW_CALLBACK_CHANGE)) {
                             $row = $ROW_CALLBACK_CHANGE($row);

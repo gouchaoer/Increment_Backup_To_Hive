@@ -16,8 +16,8 @@ yum --enablerepo=remi install php70 php70-php-pdo php70-php-mysqlnd
 
 ## 用法
 
-- 下载本repo到安装hive和php的linux主机上，进入databases目录，可以看到有一个test_database的样例，里面有一个备份MySQL表的例子test_table1.php（用户测试时导入`databases/test_database/test_table1.sql`这个建表文件到MySQL中即可）。假如你要备份一个名叫`my_database`数据库中的`my_table1`表，那么就在databases目录下新建一个名为my_database的目录，复制`databases/test_database/config.ini`过来到`databases/my_database`目录下并且修改PDO数据库连接参数。然后复制`/databases/test_database/test_table1.php`到`databases/my_database`目录下并且改名为`my_table1.php`，打开文件`my_table1.php`并且按照你的需要修改参数，这些参数的意义见“参数意义”内容。
-- `my_table1.php`参数修改好了以后就执行`php my_table1.php create`，这个操作根据数据源自动生成创建hive表的sql文件`databases/my_database/data/my_table1-schema.sql`，你可以根据需要修改之。一旦执行`php my_table1.php create`完成后，那么你就不能再修改`my_table1.php`的参数了。如果你想从新来过才能修改`my_table1.php`的参数，仍然执行`php my_table1.php create`，这会删除旧的hive表以及`databases/my_database/data`目录下该表有关的数据，然后开始全新的建表。
+- 下载本repo到安装hive和php的linux主机上，进入databases目录，可以看到有一个test_database的样例，里面有一个备份MySQL表的例子test_table1.php（对应mysql数据库文件为`databases/test_database/test_table1.sql`）。假如你要备份一个名叫`my_database`数据库中的`my_table1`表，那么就在databases目录下新建一个名为my_database的目录，复制`databases/test_database/config.ini`过来到`databases/my_database`目录下并且修改PDO数据库连接参数。然后复制`/databases/test_database/test_table1.php`到`databases/my_database`目录下并且改名为`my_table1.php`，打开文件`my_table1.php`并且按照你的需要修改参数，这些参数的意义见“参数意义”内容。
+- `my_table1.php`参数修改好了以后就执行`php my_table1.php create`，这个操作会根据数据源自动生成创建hive表的sql文件`databases/my_database/data/my_table1-schema.sql`，你可以根据需要修改之，最后同意完成hive建表。一旦执行`php my_table1.php create`完成后，那么你就不能再修改`my_table1.php`的参数了。如果你想从新来过就执行`php my_table1.php create`，这会删除旧的hive表以及`databases/my_database/data`目录下该表有关的数据，然后开始全新的建表。
 - 接下来执行`php my_table1.php backup`就能进行备份了测试了，如果没有错误的话你可以按回车键就能使备份安全停止，程序需要花一段时间才能退出（最好不要使用`Ctrl+C`的方式来打断备份），为了能每天定时备份你需要复制`databases/test_database/cron.sh`到`databases/my_database`目录下，并且修改`cron.sh`中对应的内容为`my_table1.php`，这样只需要把cron.sh加入系统cron就能每天增量备份了。比如你希望每天凌晨1点运行cron.sh，那么在crontab中加入`0 1 * * * /bin/bash /path/to/cron.sh`即可。要检查cron备份是否出错只需要查看`databases/my_database/cron_error.log`的内容即可，更详细的log在`databases/my_database/log`目录下。
 
 

@@ -88,6 +88,7 @@ yum --enablerepo=remi install php70 php70-php-pdo php70-php-mysqlnd
 	 	return $partition;
 	 }else
 	 {
+	 	//这里返回false以后备份就会在此停止
 	 	return false;
 	 }
  }

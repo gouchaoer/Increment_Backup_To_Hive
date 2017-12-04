@@ -83,6 +83,7 @@ $HIVE_FORMAT = null;
 	 	return $partition;
 	 }else
 	 {
+	 	//这里返回false以后备份就会在此停止
 	 	return false;
 	 }
  }

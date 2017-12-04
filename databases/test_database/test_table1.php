@@ -28,7 +28,7 @@ $HIVE_FORMAT = null;
 /**
  *hive表的分区策略，有如下2种情况：
  *第一：不要分区，此时设置`$ROW_CALLBACK_PARTITIONS = null;`即可
- *第二：根据数据源读到的每行字段来确定分区，此时自己设置一个以表的行数据为参数的回调函数的数组即可，数组键为分区名(分区类型只能为STRING)，比如：
+ *第二：根据数据源读到的每行字段来确定分区，此时自己设置一个以表的行数据为参数的回调函数的数组即可，数组键为分区名(分区类型只能为STRING)，如果某个回调函数返回了false备份就会在此停止，比如：
  ```
  //假如created_date字段代表插入时间，类型为TIMESTAMP，按照天分区
  $ROW_CALLBACK_PARTITIONS = [
@@ -65,6 +65,28 @@ $HIVE_FORMAT = null;
 	 return $partition;
  }
  ];
+ 
+  
+  //假如created_date字段代表插入时间，类型为TIMESTAMP，由于表中的数据可能更新，所以延迟7天备份
+ $ROW_CALLBACK_PARTITIONS = [
+ 'partition_day' => function(Array $row)
+ {
+	 $today = date("Y-m-d" , time());
+	 $today_ts = strtotime($today);
+	 $seven_day_ago_ts = $today_ts - 7*24*3600;
+
+	 $date = empty($row['date'])?'0000-00-00 00:00:00':$row['date'];
+	 $date_ts = strtotime($date);
+	 if($date_ts<$seven_day_ago_ts)
+	 {
+	 	$partition = substr($date, 0, 10);
+	 	return $partition;
+	 }else
+	 {
+	 	return false;
+	 }
+ }
+ ];
  ```
  */
 $ROW_CALLBACK_PARTITIONS = null;
@@ -97,7 +119,7 @@ $EXPORTED_FILE_BUFFER = null;
 $ALARM = function($str)
 {
 	$config_path = __DIR__ . "/config.ini";
-    $config_arr = parse_ini_file($config_path);
+	$config_arr = parse_ini_file($config_path);
             
 	$curl = curl_init();
 	curl_setopt($curl, CURLOPT_URL, $config_arr['ALARM_URL']);

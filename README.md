@@ -27,7 +27,7 @@
 - $HIVE_FORMAT:创建hive表的格式，如果本身表体积就不大可以直接使用默认的TEXTFILE纯文本格式，此时设置`$HIVE_FORMAT = null`；对于占用磁盘太大的表使用RCFILE格式压缩，此时设置`$HIVE_FORMAT = "RCFILE";`即可；使用RCFILE格式时，脚本在创建了名为`table`的RCFILE格式的hive表之后会再创建一个名为`table__tmp`的TEXTFILE的临时hive表，从数据源把数据导入了`table__tmp`表之后再转存到`table`表，最后清空`table__tmp`表
 - $ROW_CALLBACK_PARTITIONS:hive表的分区策略，有2种情况。
  第一：不要分区，此时设置`$ROW_CALLBACK_PARTITIONS = null;`即可
- 第二：根据数据源读到的每行字段来确定分区，此时自己设置一个以表的行数据为参数的回调函数的数组即可，数组键为分区名(分区类型只能为STRING)，比如：
+ 第二：根据数据源读到的每行字段来确定分区，此时自己设置一个以表的行数据为参数的回调函数的数组即可，数组键为分区名(分区类型只能为STRING)，如果某个回调函数返回了false备份就会在此停止，比如：
  
 ```
  (a),假如created_date字段代表插入时间，类型为TIMESTAMP，按照天分区
@@ -66,6 +66,27 @@
 	 return $partition;
  }
  ];
+ 
+  (d),假如created_date字段代表插入时间，类型为TIMESTAMP，由于表中的数据可能更新，所以延迟7天备份
+ $ROW_CALLBACK_PARTITIONS = [
+ 'partition_day' => function(Array $row)
+ {
+	 $today = date("Y-m-d" , time());
+	 $today_ts = strtotime($today);
+	 $seven_day_ago_ts = $today_ts - 7*24*3600;
+
+	 $date = empty($row['date'])?'0000-00-00 00:00:00':$row['date'];
+	 $date_ts = strtotime($date);
+	 if($date_ts<$seven_day_ago_ts)
+	 {
+	 	$partition = substr($date, 0, 10);
+	 	return $partition;
+	 }else
+	 {
+	 	return false;
+	 }
+ }
+ ];
 ```
 - $ROW_CALLBACK_CHANGE:如果从数据源读到的行数据和hive中不一样，比如你对自动生成的hive表增减了一些字段，此时你需要对每一行的数据进行处理满足hive表的格式，返回的数组$row的字段顺序必须和对应的hive表一致，如果不一致程序会检测到错误并退出，比如：
 
@@ -87,7 +108,7 @@ $ROW_CALLBACK_CHANGE=function (Array $row)
 $ALARM = function($str)
 {
 	$config_path = __DIR__ . "/config.ini";
-    $config_arr = parse_ini_file($config_path);
+	$config_arr = parse_ini_file($config_path);
             
 	$curl = curl_init();
 	curl_setopt($curl, CURLOPT_URL, $config_arr['ALARM_URL']);

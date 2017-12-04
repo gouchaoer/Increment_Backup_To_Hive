@@ -638,7 +638,9 @@ EOL;
         static::parse_hive_table_schema();
         $ID_START = static::id_start();
         $ID_END = static::id_end();
+        $BATCH = empty($TABLE_BATCH) ? 1000 : $TABLE_BATCH;
         $ID = $ID_START;
+
         try {
             while (true) {
                 // if ENTER is pressed, stop backup
@@ -654,8 +656,6 @@ EOL;
                     Log::log_step($msg, 'complete');
                     break;
                 }
-                
-                $BATCH = empty($TABLE_BATCH) ? 1000 : $TABLE_BATCH;
                 
                 $sql = null;
                 $ID2 = $ID + $BATCH;
@@ -680,8 +680,7 @@ EOL;
                     $rows_new = [];
                     // 分区
                     $__PARTITIONS = '';
-                    foreach ($rows as $row) {
-                    	$stop=false;
+                    foreach ($rows as $index => $row) {
                         if (! empty($ROW_CALLBACK_PARTITIONS)) {
                             $__PARTITIONS = '';
                             $idx = 0;
@@ -693,8 +692,24 @@ EOL;
                                 $idx ++;
                                 $callback_v = $callback instanceof \Closure ? $callback($row) : $callback;
                                 if($callback_v===false){
-                                	$stop=true;
-                                	break;
+                                	if($BATCH===1)
+                                	{
+                                		$msg="rows_ct:{$rows_ct}, BATCH:{$BATCH}, For {$index} row:" . substr(var_export($row, true), 0, 256) .
+                                		', $ROW_CALLBACK_PARTITIONS return false, which means that backup should stop here.';
+                                		Log::log_step($msg, 'controller_backup');
+                                		$msg="break 3 and exit...";
+                                		Log::log_step($msg);
+                                		break 3;
+                                	}else 
+                                	{
+                                		$msg="rows_ct:{$rows_ct}, BATCH:{$BATCH}, For {$index} row:" . substr(var_export($row, true), 0, 256) .
+                                		', $ROW_CALLBACK_PARTITIONS return false, let\'s set BATCH=1 and backup available rows in this batch.';
+                                		Log::log_step($msg);
+                                		$BATCH =1;
+                                		$msg="continue 3 and enter while loop again...";
+                                		Log::log_step($msg);
+                                		continue 3;
+                                	}
                                 }
                                 if ( empty($callback_v) && $callback !== '0' ) {
                                     $__PARTITIONS .= "{$partition_name}='empty'";//hive partition can't be a empty string
@@ -703,12 +718,7 @@ EOL;
                                 }
                             }
                         }
-                        if($stop===true){
-                        	$msg='For row:' . substr(var_export($row, true), 0, 256) . 
-                        	', $ROW_CALLBACK_PARTITIONS return false, which means that backup should stop here';
-                        	Log::log_step($msg, 'controller_backup');
-                        	break;
-                        }
+
                         // 处理行使之和hive格式一致
                         if (! empty($ROW_CALLBACK_CHANGE)) {
                             $row = $ROW_CALLBACK_CHANGE($row);
@@ -739,28 +749,29 @@ EOL;
                         $rows_new[] = $row;
                     }
                     static::export_to_file_buf($rows_new);
+                }
 
-                    $msg = date('Y-m-d H:i:s') . " rows_ct:{$rows_ct}, ID>={$ID} AND ID<{$ID2}\n";
-                    $exportedId_fn = self::$data_dir . $TABLE . '-exportedId';
-                    clearstatcache();
-                    if(@filesize($exportedId_fn) > Log::LOG_MAX)
-                    {
-                        $old_fn = $exportedId_fn . ".old";
-                        @unlink($old_fn);
-                        rename($exportedId_fn, $old_fn);
-                     }
-                     $res = file_put_contents($exportedId_fn, $msg, FILE_APPEND);
-                     if($res===false)
-                     {
-                     	Log::log_step("file_put_contents return false, this may be the disk is full, exit...", 'export_to_file_buf', true);
-                     	exit(1);
-                     }
-                } 
-
+                //记录到exportedId文件中，下次备份会从该文件读出上次备份位置
+                $msg = date('Y-m-d H:i:s') . " rows_ct:{$rows_ct}, ID>={$ID} AND ID<{$ID2}\n";
+                $exportedId_fn = self::$data_dir . $TABLE . '-exportedId';
+                clearstatcache();
+                if(@filesize($exportedId_fn) > Log::LOG_MAX)
+                {
+                	$old_fn = $exportedId_fn . ".old";
+                	@unlink($old_fn);
+                	rename($exportedId_fn, $old_fn);
+                }
+                $res = file_put_contents($exportedId_fn, $msg, FILE_APPEND);
+                if($res===false)
+                {
+                	Log::log_step("file_put_contents return false, this may be the disk is full, exit...", 'export_to_file_buf', true);
+                	exit(1);
+                }
+                
                 $mem_sz = memory_get_usage();
                 $msg = "ID:{$ID}, BATCH:{$BATCH}, mem_sz:{$mem_sz}, rows_ct:{$rows_ct}";
                 Log::log_step($msg);
-                
+
                 $ID += $BATCH;
                 $rs = null;
                 $rows = null;

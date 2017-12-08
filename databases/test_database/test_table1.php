@@ -75,7 +75,7 @@ $HIVE_FORMAT = null;
 	 $today_ts = strtotime($today);
 	 $seven_day_ago_ts = $today_ts - 7*24*3600;
 
-	 $date = empty($row['date'])?'0000-00-00 00:00:00':$row['date'];
+	 $date = empty($row['created_date'])?'0000-00-00 00:00:00':$row['created_date'];
 	 $date_ts = strtotime($date);
 	 if($date_ts<$seven_day_ago_ts)
 	 {

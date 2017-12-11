@@ -13,13 +13,13 @@ class Increment_Backup_To_Hive
 
     static protected function init()
     {
-        global $TABLE;
+        global $HIVE_TABLE;
         global $WORK_DIR;
         
         ini_set('memory_limit', - 1);
         set_time_limit(0);
         
-        Log::setting($TABLE);
+        Log::setting($HIVE_TABLE);
         
         $config_path = $WORK_DIR . "/config.ini";
         self::$config_arr = parse_ini_file($config_path);
@@ -47,7 +47,7 @@ class Increment_Backup_To_Hive
             }
         }
         
-        $running_lock = self::$data_dir . "{$TABLE}-running.pid";
+        $running_lock = self::$data_dir . "{$HIVE_TABLE}-running.pid";
         $running_lock_content = @file_get_contents($running_lock);
         if (! empty($running_lock_content)) {
             $pieces = explode("|", $running_lock_content);
@@ -94,12 +94,12 @@ class Increment_Backup_To_Hive
     protected static $hive_partitions;
     static protected function parse_hive_table_schema()
     {
-        global $TABLE;
+        global $HIVE_TABLE;
         global $ROW_CALLBACK_PARTITIONS;
         self::$hive_cols =[];
         self::$hive_partitions=[];
         
-        $hive_schema_fn = self::$data_dir . "/{$TABLE}-schema.sql";
+        $hive_schema_fn = self::$data_dir . "/{$HIVE_TABLE}-schema.sql";
         $hive_schema = file_get_contents($hive_schema_fn);
         // extract $hive_cols
         preg_match("/CREATE TABLE\W+\w+\W*\(([^\)]+)\)/i", $hive_schema, $matches);
@@ -199,9 +199,10 @@ class Increment_Backup_To_Hive
     	global $HIVE_DB;
     	global $HIVE_TABLE;
         global $TABLE;
+        global $HIVE_TABLE;
         global $TABLE_AUTO_INCREMENT_ID;
         
-        $exportedId_fn = self::$data_dir . $TABLE . '-exportedId';
+        $exportedId_fn = self::$data_dir . $HIVE_TABLE . '-exportedId';
         $file_str = @file_get_contents($exportedId_fn);
         $lines = explode("\n", $file_str);
         $lines_ct = count($lines);
@@ -284,7 +285,7 @@ class Increment_Backup_To_Hive
         if ($force == false && $EXPORTED_FILE_BUFFER_tmp > self::$exported_to_file_size) {
             return;
         }
-        $text_files = glob(self::$data_dir . "/{$TABLE}-data-*");
+        $text_files = glob(self::$data_dir . "/{$HIVE_TABLE}-data-*");
         if(empty($text_files))
         	return;
         $hive_format_str = empty($HIVE_FORMAT) ? 'TEXTFILE' : strtoupper($HIVE_FORMAT);
@@ -302,7 +303,7 @@ class Increment_Backup_To_Hive
         $sql = "USE `{$HIVE_DB}`;" . PHP_EOL;
         foreach ($text_files_batch as $fn) {
             $v_base = basename($fn);
-            $__PARTITIONS = substr($v_base, strlen("{$TABLE}-data-"));
+            $__PARTITIONS = substr($v_base, strlen("{$HIVE_TABLE}-data-"));
             $partition_str = "";
             if (!empty($ROW_CALLBACK_PARTITIONS))
             {
@@ -346,9 +347,9 @@ TRUNCATE TABLE `{$table0}`;
 EOL;
             }
         }
-        file_put_contents(self::$data_dir . "{$TABLE}-insert.sql", $sql);
+        file_put_contents(self::$data_dir . "{$HIVE_TABLE}-insert.sql", $sql);
         //这里把hive的stderr重定向到stdout，因为hive会输出很多奇怪的stderr信息影响判断
-        $exec_str = "hive -f " . self::$data_dir . "{$TABLE}-insert.sql 2>&1";
+        $exec_str = "hive -f " . self::$data_dir . "{$HIVE_TABLE}-insert.sql 2>&1";
         $text_files_batch_ct = count($text_files_batch);
         Log::log_step("text_files_batch_ct:{$text_files_batch_ct}, exec_str:{$exec_str}", "file_buf_to_hive");
         $o = null;
@@ -372,7 +373,7 @@ EOL;
     //把处理后的行数据按分区存入本地文件缓存
     static protected function export_to_file_buf(Array $rows_new)
     {
-        global $TABLE;
+        global $HIVE_TABLE;
         if (count($rows_new) === 0) {
             return;
         }
@@ -414,7 +415,7 @@ EOL;
         foreach ($buffer_arr as $__PARTITIONS => $buffer) {
             $buffer_sz = strlen($buffer);
             $buffer_arr_sz += $buffer_sz;
-            $fn = self::$data_dir . "/{$TABLE}-data-{$__PARTITIONS}";
+            $fn = self::$data_dir . "/{$HIVE_TABLE}-data-{$__PARTITIONS}";
             //$fn2 = addslashes($fn);
             $res = file_put_contents($fn, $buffer, FILE_APPEND);
             if($res===false)
@@ -437,12 +438,12 @@ EOL;
         global $HIVE_FORMAT;
         global $ROW_CALLBACK_PARTITIONS;
         
-        $msg = "create hive table:{$HIVE_TABLE}?\nthis will drop old hive table:{$HIVE_DB}.{$HIVE_TABLE} and  delete all old {$TABLE}'s data files.\ntype (Y/y) for yes, others for no.";
+        $msg = "create hive table:{$HIVE_TABLE}?\nthis will drop old hive table:{$HIVE_DB}.{$HIVE_TABLE} and  delete all old {$HIVE_TABLE}'s data files.\ntype (Y/y) for yes, others for no.";
         Log::log_step($msg, 'controller_create');
         $type = fgets(STDIN);
         if (substr($type, 0, 1) === 'Y' || substr($type, 0, 1) === 'y') {
             // delete data files
-            $hive_table_cache = self::$data_dir . "{$TABLE}-*";
+            $hive_table_cache = self::$data_dir . "{$HIVE_TABLE}-*";
             $hive_table_cache_files = glob($hive_table_cache);
             $files_text = implode("\n", $hive_table_cache_files);
             foreach ($hive_table_cache_files as $file) {
@@ -472,7 +473,7 @@ EOL;
         }
         
         // prepare hive table schema file
-        $msg = "generating hive table schema of {$TABLE}...";
+        $msg = "generating hive table schema of {$HIVE_TABLE}...";
         Log::log_step($msg);
         // https://stackoverflow.com/questions/5428262/php-pdo-get-the-columns-name-of-a-table
         $sql = "SELECT * from {$TABLE} LIMIT 1";
@@ -567,7 +568,7 @@ STORED AS TEXTFILE;
 EOL;
         }
         
-        $hive_schema_fn = self::$data_dir . "/{$TABLE}-schema.sql";
+        $hive_schema_fn = self::$data_dir . "/{$HIVE_TABLE}-schema.sql";
         file_put_contents($hive_schema_fn, $hive_schema_template);
         
         $msg = "hive table schema generated:{$hive_schema_fn}, change it if you need.\nuse {$hive_schema_fn} to create hive table?\ntype (Y/y) for yes, others for no.";
@@ -753,7 +754,7 @@ EOL;
 
                 //记录到exportedId文件中，下次备份会从该文件读出上次备份位置
                 $msg = date('Y-m-d H:i:s') . " rows_ct:{$rows_ct}, ID>={$ID} AND ID<{$ID2}\n";
-                $exportedId_fn = self::$data_dir . $TABLE . '-exportedId';
+                $exportedId_fn = self::$data_dir . $HIVE_TABLE . '-exportedId';
                 clearstatcache();
                 if(@filesize($exportedId_fn) > Log::LOG_MAX)
                 {
@@ -885,10 +886,9 @@ class Log
         if (empty(self::$start)) {
             self::setting();
         }
-        global $TABLE;
+        $app = self::$app;
         $now = time();
-        $php_fn = basename(__FILE__);
-        $str = date('Y-m-d H:i:s', $now) . " [{$TABLE}][{$cate}] {$message}".PHP_EOL;
+        $str = date('Y-m-d H:i:s', $now) . " [{$app}][{$cate}] {$message}".PHP_EOL;
         if ($stderr === false) 
         {
             echo $str;

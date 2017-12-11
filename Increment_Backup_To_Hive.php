@@ -631,6 +631,7 @@ EOL;
     static protected function controller_backup()
     {
         global $TABLE;
+        global $HIVE_TABLE;
         global $TABLE_AUTO_INCREMENT_ID;
         global $ROW_CALLBACK_PARTITIONS;
         global $ROW_CALLBACK_CHANGE;

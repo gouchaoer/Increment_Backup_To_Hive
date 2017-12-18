@@ -199,7 +199,6 @@ class Increment_Backup_To_Hive
     	global $HIVE_DB;
     	global $HIVE_TABLE;
         global $TABLE;
-        global $HIVE_TABLE;
         global $TABLE_AUTO_INCREMENT_ID;
         
         $exportedId_fn = self::$data_dir . $HIVE_TABLE . '-exportedId';
@@ -236,7 +235,7 @@ class Increment_Backup_To_Hive
         }
         if(!empty($o))
         {
-        	$msg="ID_START not parsed in {$exportedId_fn} means that this is the first time to backup. But you already have data in {$HIVE_DB}.{$HIVE_TABLE}. Maybe the {$exportedId_fn} has last...exit";
+        	$msg="ID_START not parsed in {$exportedId_fn} means that this is the first time to backup. But you already have data in {$HIVE_DB}.{$HIVE_TABLE}. Maybe the {$exportedId_fn} has last, try to create again to delete old hive table...exit";
         	Log::log_step($msg, 'id_start', true);
         	exit(1);
         }

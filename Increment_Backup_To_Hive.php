@@ -361,7 +361,10 @@ EOL;
         }
         foreach ($text_files_batch as $fn) 
         {
+        	$fn_sz = filesize($fn);
         	unlink($fn);
+        	$msg="size:{$fn_sz}, unlink {$fn}";
+        	Log::log_step($msg);
         }
         $exec_output = var_export($o,true);
         Log::log_step("import to hive done, force:{$force}, unlink all {$text_files_batch_ct} text_files_batch files. exec_output:{$exec_output}", "exec_output");

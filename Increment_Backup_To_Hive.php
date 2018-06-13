@@ -15,12 +15,12 @@ class Increment_Backup_To_Hive
     {
         global $HIVE_TABLE;
         global $WORK_DIR;
-        
+
         ini_set('memory_limit', - 1);
         set_time_limit(0);
-        
+
         Log::setting($HIVE_TABLE);
-        
+
         $config_path = $WORK_DIR . "/config.ini";
         self::$config_arr = parse_ini_file($config_path);
         if (empty(self::$config_arr)) {
@@ -28,7 +28,7 @@ class Increment_Backup_To_Hive
             Log::log_step($msg, 'init', true);
             exit(1);
         }
-        
+
         self::$data_dir = $WORK_DIR . "/data/";
         if (! file_exists(self::$data_dir)) {
             if (! mkdir(self::$data_dir, 0777, true)) {
@@ -37,7 +37,7 @@ class Increment_Backup_To_Hive
                 exit(1);
             }
         }
-        
+
         self::$log_dir = $WORK_DIR . "/log/";
         if (! file_exists(self::$log_dir)) {
             if (! mkdir(self::$log_dir, 0777, true)) {
@@ -46,7 +46,7 @@ class Increment_Backup_To_Hive
                 exit(1);
             }
         }
-        
+
         $running_lock = self::$data_dir . "{$HIVE_TABLE}-running.pid";
         $running_lock_content = @file_get_contents($running_lock);
         if (! empty($running_lock_content)) {
@@ -68,19 +68,19 @@ class Increment_Backup_To_Hive
             @unlink($running_lock);
             //Log::log_step("unlink {$running_lock}", 'init');
         });
-        
+
         try {
-        	//https://stackoverflow.com/questions/29493197
-        	ini_set("default_socket_timeout", 2);
+            //https://stackoverflow.com/questions/29493197
+            ini_set("default_socket_timeout", 2);
             self::$dbh = new PDO(
-            		self::$config_arr['DB_DSN'], 
-            		self::$config_arr['DB_USER'], 
-            		self::$config_arr['DB_PASSWD'],
-            		[
-            				PDO::ATTR_TIMEOUT => 300,
-            				PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION
-            		]
-            		);
+                self::$config_arr['DB_DSN'],
+                self::$config_arr['DB_USER'],
+                self::$config_arr['DB_PASSWD'],
+                [
+                    PDO::ATTR_TIMEOUT => 300,
+                    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION
+                ]
+            );
             self::$dbh->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
         } catch (PDOException $e) {
             $msg = "PDO Connection failed, exit 1... " . $e->getMessage();
@@ -98,7 +98,7 @@ class Increment_Backup_To_Hive
         global $ROW_CALLBACK_PARTITIONS;
         self::$hive_cols =[];
         self::$hive_partitions=[];
-        
+
         $hive_schema_fn = self::$data_dir . "/{$HIVE_TABLE}-schema.sql";
         $hive_schema = file_get_contents($hive_schema_fn);
         // extract $hive_cols
@@ -131,7 +131,7 @@ class Increment_Backup_To_Hive
                 Log::log_step($msg, 'parse_hive_table_schema', true);
                 exit(1);
             }
-            
+
             $cols_arr = explode(",", $matches[1]);
             foreach ($cols_arr as $col)
             {
@@ -159,20 +159,20 @@ class Increment_Backup_To_Hive
     {
         global $TABLE_AUTO_INCREMENT_ID;
         global $TABLE;
-        
+
         $ID_END = null;
         try {
             if (empty($TABLE_AUTO_INCREMENT_ID)) {
                 $sql = "SELECT COUNT(*) FROM `{$TABLE}`";
-                
+
                 $rs = self::$dbh->query($sql);
                 $ID_END = $rs->fetchColumn();
-                
+
                 $msg = "TABLE_AUTO_INCREMENT_ID is null, ID_END:{$ID_END}";
                 Log::log_step($msg, 'id_end');
             } else {
                 $sql = "SELECT MAX(`{$TABLE_AUTO_INCREMENT_ID}`) FROM `{$TABLE}`";
-                
+
                 $rs = self::$dbh->query($sql);
                 $ID_END = $rs->fetchColumn();
                 if ($ID_END === null) {
@@ -180,7 +180,7 @@ class Increment_Backup_To_Hive
                     $msg = "empty table:{$TABLE}, set ID_END=0, sql:{$sql}";
                     Log::log_step($msg, 'id_end');
                 }
-                
+
                 $msg = "ID_END:{$ID_END} is selected, sql:{$sql}";
                 Log::log_step($msg, 'id_end');
             }
@@ -189,18 +189,18 @@ class Increment_Backup_To_Hive
             Log::log_step($msg, 'id_end', true);
             exit(1);
         }
-        
+
         return $ID_END;
     }
 
     //decide where to start backup
     static protected function id_start()
     {
-    	global $HIVE_DB;
-    	global $HIVE_TABLE;
+        global $HIVE_DB;
+        global $HIVE_TABLE;
         global $TABLE;
         global $TABLE_AUTO_INCREMENT_ID;
-        
+
         $exportedId_fn = self::$data_dir . $HIVE_TABLE . '-exportedId';
         $file_str = @file_get_contents($exportedId_fn);
         $lines = explode("\n", $file_str);
@@ -220,26 +220,26 @@ class Increment_Backup_To_Hive
             Log::log_step($msg, 'id_start');
             return $ID_START;
         }
-        
+
         //ID_START not parsed in {$exportedId_fn}. Backup for the first time, let's check if there's data in the hive
         $sql = "'USE `{$HIVE_DB}`;SELECT * FROM {$HIVE_TABLE} LIMIT 1;'";
-		//重定向stderr到/dev/null，因为要根据stdout有无来判断表是否为空
+        //重定向stderr到/dev/null，因为要根据stdout有无来判断表是否为空
         $exec_str = "hive -e {$sql} 2>/dev/null";
         $o = null;
         $r = null;
         exec($exec_str, $o, $r);
         if ($r !== 0) {
-        	$msg = var_export($o, true);
-        	Log::log_step("exec_str:{$exec_str}, {$msg}", 'id_start', true);
-        	exit(1);
+            $msg = var_export($o, true);
+            Log::log_step("exec_str:{$exec_str}, {$msg}", 'id_start', true);
+            exit(1);
         }
         if(!empty($o))
         {
-        	$msg="ID_START not parsed in {$exportedId_fn} means that this is the first time to backup. But you already have data in {$HIVE_DB}.{$HIVE_TABLE}. Maybe the {$exportedId_fn} has last, try to create again to delete old hive table...exit";
-        	Log::log_step($msg, 'id_start', true);
-        	exit(1);
+            $msg="ID_START not parsed in {$exportedId_fn} means that this is the first time to backup. But you already have data in {$HIVE_DB}.{$HIVE_TABLE}. Maybe the {$exportedId_fn} has last, try to create again to delete old hive table...exit";
+            Log::log_step($msg, 'id_start', true);
+            exit(1);
         }
-        
+
         if (empty($TABLE_AUTO_INCREMENT_ID)) {
             $ID_START = 0;
             $msg = 'TABLE_AUTO_INCREMENT_ID is null, set ID_START=0';
@@ -255,7 +255,7 @@ class Increment_Backup_To_Hive
                     $msg = "empty table:{$TABLE}, set ID_START=0, sql:{$sql}";
                     Log::log_step($msg, 'id_start');
                 }
-                
+
                 $msg = "ID_START:{$ID_START} is selected, sql:{$sql}";
                 Log::log_step($msg, 'id_start');
                 return $ID_START;
@@ -276,7 +276,7 @@ class Increment_Backup_To_Hive
         global $HIVE_DB;
         global $HIVE_FORMAT;
         global $ROW_CALLBACK_PARTITIONS;
-        
+
         $EXPORTED_FILE_BUFFER_tmp = 8 * 1024 * 1024 * 1024; //default 8G
         if (!empty($EXPORTED_FILE_BUFFER)) {
             $EXPORTED_FILE_BUFFER_tmp = $EXPORTED_FILE_BUFFER;
@@ -286,18 +286,18 @@ class Increment_Backup_To_Hive
         }
         $text_files = glob(self::$data_dir . "/{$HIVE_TABLE}-data-*");
         if(empty($text_files))
-        	return;
+            return;
         $hive_format_str = empty($HIVE_FORMAT) ? 'TEXTFILE' : strtoupper($HIVE_FORMAT);
         //if enter is pressed, only import 1 file into hive to save time
         $text_files_batch=[];
         if(static::check_enter_pressed())
         {
-        	$text_files_batch=[$text_files[0]];
-        	$msg="enter pressed, only import one file to hive to save time";
-        	Log::log_step($msg, "file_buf_to_hive");
+            $text_files_batch=[$text_files[0]];
+            $msg="enter pressed, only import one file to hive to save time";
+            Log::log_step($msg, "file_buf_to_hive");
         }else
         {
-        	$text_files_batch=$text_files;
+            $text_files_batch=$text_files;
         }
         $sql = "";
         if($HIVE_FORMAT)//有RCFile的压缩格式
@@ -346,7 +346,7 @@ EOL;
                 {
                     if($k!==0)
                         $hive_cols_str .=",";
-                        $hive_cols_str.=" `{$v}`";
+                    $hive_cols_str.=" `{$v}`";
                 }
                 $sql .= <<<EOL
 INSERT INTO TABLE `{$table1}` {$partition_str} SELECT {$hive_cols_str} FROM `{$table_tmp}`;
@@ -364,16 +364,16 @@ EOL;
         $r = null;
         exec($exec_str, $o, $r);
         if ($r !== 0) {
-        	$msg = var_export($o, true);
-        	Log::log_step($msg, 'file_buf_to_hive', true);
-        	exit(1);
+            $msg = var_export($o, true);
+            Log::log_step($msg, 'file_buf_to_hive', true);
+            exit(1);
         }
-        foreach ($text_files_batch as $fn) 
+        foreach ($text_files_batch as $fn)
         {
-        	$fn_sz = filesize($fn);
-        	unlink($fn);
-        	$msg="size:{$fn_sz}, unlink {$fn}";
-        	Log::log_step($msg);
+            $fn_sz = filesize($fn);
+            unlink($fn);
+            $msg="size:{$fn_sz}, unlink {$fn}";
+            Log::log_step($msg);
         }
         $exec_output = var_export($o,true);
         Log::log_step("import to hive done, force:{$force}, unlink all {$text_files_batch_ct} text_files_batch files. exec_output:{$exec_output}", "exec_output");
@@ -431,68 +431,8 @@ EOL;
             $res = file_put_contents($fn, $buffer, FILE_APPEND);
             if($res===false)
             {
-            	Log::log_step("file_put_contents return false, this may be the disk is full, exit...", 'export_to_file_buf', true);
-            	exit(1);
-            }
-        }
-        self::$exported_to_file_size += $buffer_arr_sz;
-        $rows_new_ct = count($rows_new);
-        Log::log_step("rows_new_ct:{$rows_new_ct}, buffer_arr_sz:{$buffer_arr_sz}, exported_to_file_size:" . self::$exported_to_file_size, 'export_to_file_buf');
-    }
-
-    static protected $exported_to_file_size = 0;
-    //把处理后的行数据按分区存入本地文件缓存
-    static protected function export_to_file_buf(Array $rows_new)
-    {
-        global $HIVE_TABLE;
-        if (count($rows_new) === 0) {
-            return;
-        }
-        $buffer_arr = [];
-        foreach ($rows_new as $k => $row) {
-            $__PARTITIONS = '';
-            if (! empty($row['__PARTITIONS'])) {
-                $__PARTITIONS = $row['__PARTITIONS'];
-            }
-            if (! isset($buffer_arr[$__PARTITIONS])) {
-                $buffer_arr[$__PARTITIONS] = '';
-            }
-            unset($row['__PARTITIONS']);
-            $kk_tmp = 0;
-            foreach ($row as $kk => $vv) {
-                if ($kk_tmp !== 0) {
-                    $buffer_arr[$__PARTITIONS] .= "\001";
-                } else {
-                    $kk_tmp ++;
-                }
-                if (is_null($vv)) {
-                    $buffer_arr[$__PARTITIONS] .= "\N";
-                } else {
-                    $vv_tmp = str_replace([
-                        "\n",
-                        "'",
-                        "\001"
-                    ], [
-                        "",
-                        "\'",
-                        ""
-                    ], $vv);
-                    $buffer_arr[$__PARTITIONS] .= $vv_tmp;
-                }
-            }
-            $buffer_arr[$__PARTITIONS] .= "\n";
-        }
-        $buffer_arr_sz = 0;
-        foreach ($buffer_arr as $__PARTITIONS => $buffer) {
-            $buffer_sz = strlen($buffer);
-            $buffer_arr_sz += $buffer_sz;
-            $fn = self::$data_dir . "/{$HIVE_TABLE}-data-{$__PARTITIONS}";
-            //$fn2 = addslashes($fn);
-            $res = file_put_contents($fn, $buffer, FILE_APPEND);
-            if($res===false)
-            {
-            	Log::log_step("file_put_contents return false, this may be the disk is full, exit...", 'export_to_file_buf', true);
-            	exit(1);
+                Log::log_step("file_put_contents return false, this may be the disk is full, exit...", 'export_to_file_buf', true);
+                exit(1);
             }
         }
         self::$exported_to_file_size += $buffer_arr_sz;
@@ -508,7 +448,7 @@ EOL;
         global $argv;
         global $HIVE_FORMAT;
         global $ROW_CALLBACK_PARTITIONS;
-        
+
         $msg = "create hive table:{$HIVE_TABLE}?\nthis will drop old hive table:{$HIVE_DB}.{$HIVE_TABLE} and  delete all old {$HIVE_TABLE}'s data files.\ntype (Y/y) for yes, others for no.";
         Log::log_step($msg, 'controller_create');
         $type = fgets(STDIN);
@@ -522,7 +462,7 @@ EOL;
             }
             $msg = "data files deleted:" . PHP_EOL . "{$files_text}" ;
             Log::log_step($msg, 'controller_create');
-            
+
             // DROP hive table
             $o = null;
             $r = null;
@@ -534,7 +474,7 @@ EOL;
                 Log::log_step($msg, 'controller_delete', true);
                 exit(1);
             }
-            
+
             $msg = "hive table:{$HIVE_TABLE} dropped...";
             Log::log_step($msg, 'controller_create');
         } else {
@@ -542,7 +482,7 @@ EOL;
             Log::log_step($msg);
             exit(0);
         }
-        
+
         // prepare hive table schema file
         $msg = "generating hive table schema of {$HIVE_TABLE}...";
         Log::log_step($msg);
@@ -562,13 +502,13 @@ EOL;
             Log::log_step($msg, 'controller_create', true);
             exit(1);
         }
-        
+
         if (empty($columns_name)) {
             $msg = "empty column returned, sql:{$sql}, exit 1";
             Log::log_step($msg, 'controller_create', true);
             exit(1);
         }
-        
+
         $columns_str = '';
         $index=0;
         foreach ($columns_name as $k => $name) {
@@ -587,14 +527,14 @@ EOL;
             //`__ID`为https://github.com/gouchaoer/Increment_Backup_To_Hive/blob/master/tools/csv2mysql.php为csv文件自动生成自增int主键
             if($name!=='__ID')
             {
-            	if ($index !== 0) {
-            		$columns_str .= ",\n";
-            	}
-            	$index++;
-            	$columns_str .= "`{$name}` {$hive_type}";
+                if ($index !== 0) {
+                    $columns_str .= ",\n";
+                }
+                $index++;
+                $columns_str .= "`{$name}` {$hive_type}";
             }
         }
-        
+
         $hive_format_str = empty($HIVE_FORMAT) ? 'TEXTFILE' : strtoupper($HIVE_FORMAT);
         $partition_str = '';
         if(!empty($ROW_CALLBACK_PARTITIONS))
@@ -610,7 +550,7 @@ EOL;
             }
             $partition_str .= " )";
         }
-        
+
         $hive_schema_template = <<<EOL
 USE `{$HIVE_DB}`;
 CREATE TABLE `{$HIVE_TABLE}` (
@@ -638,10 +578,10 @@ STORED AS TEXTFILE;
 
 EOL;
         }
-        
+
         $hive_schema_fn = self::$data_dir . "/{$HIVE_TABLE}-schema.sql";
         file_put_contents($hive_schema_fn, $hive_schema_template);
-        
+
         $msg = "hive table schema generated:{$hive_schema_fn}, change it if you need.\nuse {$hive_schema_fn} to create hive table?\ntype (Y/y) for yes, others for no.";
         Log::log_step($msg);
 
@@ -668,7 +608,7 @@ EOL;
             Log::log_step($msg);
             exit(0);
         }
-        
+
         $msg = "create done, use `php {$argv[0]} backup` to backup to hive, you can add it to cron.sh for daily backup";
         Log::log_step($msg);
     }
@@ -677,8 +617,8 @@ EOL;
     static protected  $enter_pressed=false;
     static protected function check_enter_pressed()
     {
-    	if(self::$enter_pressed===true)
-    		return true;
+        if(self::$enter_pressed===true)
+            return true;
         $read = [
             STDIN
         ];
@@ -691,7 +631,7 @@ EOL;
             return false;
         $data = stream_get_line(STDIN, 1);
         if (strpos($data, "\n") !== false) {
-        	self::$enter_pressed=true;
+            self::$enter_pressed=true;
             return true;
         }
         //TODO:
@@ -707,7 +647,7 @@ EOL;
         global $ROW_CALLBACK_PARTITIONS;
         global $ROW_CALLBACK_CHANGE;
         global $TABLE_BATCH;
-        
+
         static::parse_hive_table_schema();
         $ID_START = static::id_start();
         $ID_END = static::id_end();
@@ -723,13 +663,13 @@ EOL;
                     Log::log_step($msg, 'enter_pressed');
                     break;
                 }
-                
+
                 if ($ID >= $ID_END) {
                     $msg = "ID:{$ID} >= ID_END:{$ID_END}, complete";
                     Log::log_step($msg, 'complete');
                     break;
                 }
-                
+
                 $sql = null;
                 $ID2 = $ID + $BATCH;
                 if($ID2>$ID_END)
@@ -745,7 +685,7 @@ EOL;
                 $rs = self::$dbh->query($sql);
                 if($rs===false)
                 {
-                	throw new Exception("PDO query return false, sql:{$sql}");
+                    throw new Exception("PDO query return false, sql:{$sql}");
                 }
                 $rows = $rs->fetchAll(PDO::FETCH_ASSOC);
                 $rows_ct = count($rows);
@@ -758,31 +698,31 @@ EOL;
                             $__PARTITIONS = '';
                             $idx = 0;
                             foreach ($ROW_CALLBACK_PARTITIONS as $partition_name => $callback) {
-                                
+
                                 if ($idx !== 0) {
                                     $__PARTITIONS .= ",";
                                 }
                                 $idx ++;
                                 $callback_v = $callback instanceof \Closure ? $callback($row) : $callback;
                                 if($callback_v===false){
-                                	if($BATCH===1)
-                                	{
-                                		$msg="rows_ct:{$rows_ct}, BATCH:{$BATCH}, For {$index} row:" . substr(var_export($row, true), 0, 256) .
-                                		', $ROW_CALLBACK_PARTITIONS return false, which means that backup should stop here.';
-                                		Log::log_step($msg, 'controller_backup');
-                                		$msg="break 3 and exit...";
-                                		Log::log_step($msg);
-                                		break 3;
-                                	}else 
-                                	{
-                                		$msg="rows_ct:{$rows_ct}, BATCH:{$BATCH}, For {$index} row:" . substr(var_export($row, true), 0, 256) .
-                                		', $ROW_CALLBACK_PARTITIONS return false, let\'s set BATCH=1 and backup available rows in this batch.';
-                                		Log::log_step($msg);
-                                		$BATCH =1;
-                                		$msg="continue 3 and enter while loop again...";
-                                		Log::log_step($msg);
-                                		continue 3;
-                                	}
+                                    if($BATCH===1)
+                                    {
+                                        $msg="rows_ct:{$rows_ct}, BATCH:{$BATCH}, For {$index} row:" . substr(var_export($row, true), 0, 256) .
+                                            ', $ROW_CALLBACK_PARTITIONS return false, which means that backup should stop here.';
+                                        Log::log_step($msg, 'controller_backup');
+                                        $msg="break 3 and exit...";
+                                        Log::log_step($msg);
+                                        break 3;
+                                    }else
+                                    {
+                                        $msg="rows_ct:{$rows_ct}, BATCH:{$BATCH}, For {$index} row:" . substr(var_export($row, true), 0, 256) .
+                                            ', $ROW_CALLBACK_PARTITIONS return false, let\'s set BATCH=1 and backup available rows in this batch.';
+                                        Log::log_step($msg);
+                                        $BATCH =1;
+                                        $msg="continue 3 and enter while loop again...";
+                                        Log::log_step($msg);
+                                        continue 3;
+                                    }
                                 }
                                 if ( empty($callback_v) && $callback !== '0' ) {
                                     $__PARTITIONS .= "{$partition_name}='empty'";//hive partition can't be a empty string
@@ -814,11 +754,11 @@ EOL;
                                 exit(1);
                             }
                         }
-                        
+
                         if (! empty($__PARTITIONS)) {
                             $row['__PARTITIONS'] = $__PARTITIONS;
                         }
-                        
+
                         $rows_new[] = $row;
                     }
                     static::export_to_file_buf($rows_new);
@@ -830,17 +770,17 @@ EOL;
                 clearstatcache();
                 if(@filesize($exportedId_fn) > Log::LOG_MAX)
                 {
-                	$old_fn = $exportedId_fn . ".old";
-                	@unlink($old_fn);
-                	rename($exportedId_fn, $old_fn);
+                    $old_fn = $exportedId_fn . ".old";
+                    @unlink($old_fn);
+                    rename($exportedId_fn, $old_fn);
                 }
                 $res = file_put_contents($exportedId_fn, $msg, FILE_APPEND);
                 if($res===false)
                 {
-                	Log::log_step("file_put_contents return false, this may be the disk is full, exit...", 'export_to_file_buf', true);
-                	exit(1);
+                    Log::log_step("file_put_contents return false, this may be the disk is full, exit...", 'export_to_file_buf', true);
+                    exit(1);
                 }
-                
+
                 $mem_sz = memory_get_usage();
                 $msg = "ID:{$ID}, BATCH:{$BATCH}, mem_sz:{$mem_sz}, rows_ct:{$rows_ct}";
                 Log::log_step($msg);
@@ -855,14 +795,14 @@ EOL;
             Log::log_step($msg, 'PDO', true);
             exit(1);
         }
-		
+
         static::file_buf_to_hive(true);
     }
 
     static public function run()
     {
         static::init();
-        
+
         global $argv;
         $supported_arguments = [
             'create',
@@ -879,7 +819,7 @@ EOL;
             Log::log_step($msg, 'run', true);
             exit(1);
         }
-        
+
         if ($arg === $supported_arguments[0]) {
             static::controller_create();
         } else if ($arg === $supported_arguments[1]) {
@@ -905,9 +845,9 @@ class Log
     static public function setting($app = 'table')
     {
         global $WORK_DIR;
-        
+
         self::$start = time();
-        
+
         self::$log_dir = $WORK_DIR . "/log/";
         if (! file_exists(self::$log_dir)) {
             if (! mkdir(self::$log_dir, 0777, true)) {
@@ -918,13 +858,13 @@ class Log
                 exit(1);
             }
         }
-        
+
         $tz = date_default_timezone_get();
         if ($tz === "UTC") // 为设置时区
-		{
+        {
             date_default_timezone_set('Asia/Shanghai');
         }
-        
+
         self::$app = $app;
     }
 
@@ -936,13 +876,13 @@ class Log
         } else {
             $fn = self::$log_dir . self::$app . "-{$cate}.log";
         }
-        
+
         file_put_contents($fn, $str, FILE_APPEND);
-        
+
         clearstatcache();
         $filesize = filesize($fn);
         if ($filesize > self::LOG_MAX) {
-            
+
             $old_fn = str_replace('.log', ".old.log", $fn);
             @unlink($old_fn);
             rename($fn, $old_fn);
@@ -954,17 +894,17 @@ class Log
 
     static public function log_step($message, $cate = null, $stderr = false)
     {
-    	global $ALARM;
+        global $ALARM;
         if (empty(self::$start)) {
             self::setting();
         }
         $app = self::$app;
         $now = time();
         $str = date('Y-m-d H:i:s', $now) . " [{$app}][{$cate}] {$message}".PHP_EOL;
-        if ($stderr === false) 
+        if ($stderr === false)
         {
             echo $str;
-        } else 
+        } else
         {
             $fh = fopen('php://stderr', 'a');
             fwrite($fh, $str);
@@ -972,11 +912,11 @@ class Log
             // an error happend, let's alarmForward
             if(!empty($ALARM))
             {
-            	$ALARM($str);
+                $ALARM($str);
             }
         }
         self::log_file($str);
-        if (! empty($cate)) 
+        if (! empty($cate))
         {
             self::log_file($str, $cate);
         }

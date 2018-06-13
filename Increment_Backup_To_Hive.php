@@ -299,28 +299,37 @@ class Increment_Backup_To_Hive
         {
         	$text_files_batch=$text_files;
         }
-        $sql = "USE `{$HIVE_DB}`;" . PHP_EOL;
+        $sql = "";
+        if($HIVE_FORMAT)//有RCFile的压缩格式
+        {
+            $sql .= "SET hive.exec.compress.output=true;" . PHP_EOL;
+        }
+        $sql .= "USE `{$HIVE_DB}`;" . PHP_EOL;
         foreach ($text_files_batch as $fn) {
             $v_base = basename($fn);
+            $fn2 = addslashes($fn);
             $__PARTITIONS = substr($v_base, strlen("{$HIVE_TABLE}-data-"));
             $partition_str = "";
             if (!empty($ROW_CALLBACK_PARTITIONS))
             {
                 $partition_str="PARTITION ( {$__PARTITIONS})";
             }
-            $table0=null;
+
             if($hive_format_str==='TEXTFILE')
             {
-                $table0=$HIVE_TABLE;
-            }else
-            {
-                $table0=$HIVE_TABLE . "__tmp";
-            }
-            $fn2 = addslashes($fn);
-            $sql .= <<<EOL
-LOAD DATA LOCAL INPATH '{$fn2}' INTO TABLE `{$table0}` {$partition_str};
+                $sql .= <<<EOL
+LOAD DATA LOCAL INPATH '{$fn2}' INTO TABLE `{$HIVE_TABLE}` {$partition_str};
 
 EOL;
+            }else
+            {
+                $table_tmp=$HIVE_TABLE . "__tmp";
+                $sql .= <<<EOL
+TRUNCATE TABLE `{$table_tmp}`;
+LOAD DATA LOCAL INPATH '{$fn2}' INTO TABLE `{$table_tmp}` {$partition_str};
+
+EOL;
+            }
 
             $table1=null;
             if($hive_format_str==='TEXTFILE')
@@ -340,8 +349,8 @@ EOL;
                         $hive_cols_str.=" `{$v}`";
                 }
                 $sql .= <<<EOL
-INSERT INTO TABLE `{$table1}` {$partition_str} SELECT {$hive_cols_str} FROM `{$table0}`;
-TRUNCATE TABLE `{$table0}`;
+INSERT INTO TABLE `{$table1}` {$partition_str} SELECT {$hive_cols_str} FROM `{$table_tmp}`;
+TRUNCATE TABLE `{$table_tmp}`;
 
 EOL;
             }
@@ -369,6 +378,66 @@ EOL;
         $exec_output = var_export($o,true);
         Log::log_step("import to hive done, force:{$force}, unlink all {$text_files_batch_ct} text_files_batch files. exec_output:{$exec_output}", "exec_output");
         self::$exported_to_file_size=0;
+    }
+
+    static protected $exported_to_file_size = 0;
+    //把处理后的行数据按分区存入本地文件缓存
+    static protected function export_to_file_buf(Array $rows_new)
+    {
+        global $HIVE_TABLE;
+        if (count($rows_new) === 0) {
+            return;
+        }
+        $buffer_arr = [];
+        foreach ($rows_new as $k => $row) {
+            $__PARTITIONS = '';
+            if (! empty($row['__PARTITIONS'])) {
+                $__PARTITIONS = $row['__PARTITIONS'];
+            }
+            if (! isset($buffer_arr[$__PARTITIONS])) {
+                $buffer_arr[$__PARTITIONS] = '';
+            }
+            unset($row['__PARTITIONS']);
+            $kk_tmp = 0;
+            foreach ($row as $kk => $vv) {
+                if ($kk_tmp !== 0) {
+                    $buffer_arr[$__PARTITIONS] .= "\001";
+                } else {
+                    $kk_tmp ++;
+                }
+                if (is_null($vv)) {
+                    $buffer_arr[$__PARTITIONS] .= "\N";
+                } else {
+                    $vv_tmp = str_replace([
+                        "\n",
+                        "'",
+                        "\001"
+                    ], [
+                        "",
+                        "\'",
+                        ""
+                    ], $vv);
+                    $buffer_arr[$__PARTITIONS] .= $vv_tmp;
+                }
+            }
+            $buffer_arr[$__PARTITIONS] .= "\n";
+        }
+        $buffer_arr_sz = 0;
+        foreach ($buffer_arr as $__PARTITIONS => $buffer) {
+            $buffer_sz = strlen($buffer);
+            $buffer_arr_sz += $buffer_sz;
+            $fn = self::$data_dir . "/{$HIVE_TABLE}-data-{$__PARTITIONS}";
+            //$fn2 = addslashes($fn);
+            $res = file_put_contents($fn, $buffer, FILE_APPEND);
+            if($res===false)
+            {
+            	Log::log_step("file_put_contents return false, this may be the disk is full, exit...", 'export_to_file_buf', true);
+            	exit(1);
+            }
+        }
+        self::$exported_to_file_size += $buffer_arr_sz;
+        $rows_new_ct = count($rows_new);
+        Log::log_step("rows_new_ct:{$rows_new_ct}, buffer_arr_sz:{$buffer_arr_sz}, exported_to_file_size:" . self::$exported_to_file_size, 'export_to_file_buf');
     }
 
     static protected $exported_to_file_size = 0;
